@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY", "")
-NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/Nemotron-3_5-Lightning")
+NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.eu-north1.nebius.com/v1/").rstrip("/")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 APP_TOKEN = os.getenv("APP_TOKEN", "")  # Optional shared secret header
