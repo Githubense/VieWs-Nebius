@@ -141,6 +141,12 @@ actor NebiusClient {
         return try Self.decodePayload(from: text)
     }
 
+    /// Diagnostic helper to inspect raw model text
+    func testSend(system: String, user: String) async throws -> String {
+        guard NebiusConfig.isConfigured, let base = NebiusConfig.baseURL else { throw NebiusError.notConfigured }
+        return try await send(system: system, user: user, base: base)
+    }
+
     private func downgraded(_ m: Mode) -> Mode? {
         switch m {
         case .jsonSchema: return .jsonObject
@@ -223,13 +229,70 @@ actor NebiusClient {
 
     static func extractJSON(from raw: String) -> String {
         var text = raw
-        // Remove <think>…</think> reasoning blocks some models emit.
+
+        // 1. Remove <think>…</think> reasoning blocks some models emit.
         while let open = text.range(of: "<think>"), let close = text.range(of: "</think>", range: open.upperBound..<text.endIndex) {
             text.removeSubrange(open.lowerBound..<close.upperBound)
         }
-        // Remove an unterminated <think> prefix, if any.
         if let open = text.range(of: "<think>") { text.removeSubrange(open.lowerBound..<text.endIndex) }
-        // Take from the first "{" to the last "}" (drops ``` fences and any prose).
+
+        // 2. Check for fenced code block ```json ... ```
+        if let startFence = text.range(of: "```json"), let endFence = text.range(of: "```", range: startFence.upperBound..<text.endIndex) {
+            let fenced = String(text[startFence.upperBound..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if (try? JSONSerialization.jsonObject(with: Data(fenced.utf8))) != nil {
+                return fenced
+            }
+        }
+
+        // 3. Scan for balanced JSON object containing "weather"
+        var searchIndex = text.startIndex
+        while searchIndex < text.endIndex, let openBrace = text[searchIndex...].firstIndex(of: "{") {
+            var depth = 0
+            var inString = false
+            var escape = false
+            var closeBrace: String.Index? = nil
+
+            for idx in text.indices[openBrace...] {
+                let char = text[idx]
+                if escape {
+                    escape = false
+                    continue
+                }
+                if char == "\\" && inString {
+                    escape = true
+                    continue
+                }
+                if char == "\"" {
+                    inString.toggle()
+                    continue
+                }
+                if !inString {
+                    if char == "{" {
+                        depth += 1
+                    } else if char == "}" {
+                        depth -= 1
+                        if depth == 0 {
+                            closeBrace = idx
+                            break
+                        }
+                    }
+                }
+            }
+
+            if let close = closeBrace {
+                let candidate = String(text[openBrace...close])
+                if candidate.contains("\"weather\""),
+                   let data = candidate.data(using: .utf8),
+                   (try? JSONSerialization.jsonObject(with: data)) != nil {
+                    return candidate
+                }
+                searchIndex = text.index(after: openBrace)
+            } else {
+                break
+            }
+        }
+
+        // Fallback: first '{' to last '}'
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end else {
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
         }

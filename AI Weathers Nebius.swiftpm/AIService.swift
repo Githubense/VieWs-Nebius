@@ -28,7 +28,7 @@ class AIService {
     Given an emotion or feeling, output precise numeric values that create the matching atmosphere,
     plus a matching 5-colour palette.
 
-    Respond with ONE JSON object and nothing else (no markdown, no commentary), exactly this shape:
+    CRITICAL: Do NOT think out loud in the content. Output ONLY the JSON object, starting immediately with "{", exactly this shape:
     {
       "weather": {
         "sceneTitle": "two evocative words",

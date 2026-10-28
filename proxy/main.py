@@ -21,8 +21,9 @@ from pydantic import BaseModel, Field
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY", "")
-NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
-NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/").rstrip("/")
+NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/Nemotron-3_5-Lightning")
+NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.eu-north1.nebius.com/v1/").rstrip("/")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 APP_TOKEN = os.getenv("APP_TOKEN", "")  # Optional shared secret header
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "40"))
 
@@ -35,7 +36,7 @@ SYSTEM_PROMPT = """You are an environmental parameter generator for a procedural
 Given an emotion or feeling, output precise numeric values that create the matching atmosphere,
 plus a matching 5-colour palette.
 
-Respond with ONE JSON object and nothing else (no markdown, no commentary), exactly this shape:
+CRITICAL: Do NOT think out loud in the content. Output ONLY the JSON object, starting immediately with "{", exactly this shape:
 {
   "weather": {
     "sceneTitle": "two evocative words",
@@ -119,6 +120,7 @@ class ColorPalette(BaseModel):
 class SceneResponse(BaseModel):
     weather: WeatherState
     palette: Optional[ColorPalette] = None
+    grounding: Optional[str] = None
 
 # ── Fallback Defaults ─────────────────────────────────────────────────────────
 
@@ -169,12 +171,62 @@ def is_rate_limited(ip: str) -> bool:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def extract_json(raw: str) -> str:
-    """Strips <think> tags, markdown code blocks, and extraneous prose."""
-    # Strip <think>...</think>
+    """Strips <think> tags, markdown code blocks, and extraneous trailing/leading prose."""
     text = re.sub(r"<think>[\s\S]*?</think>", "", raw)
-    # Strip open <think> tag if model was truncated mid-reasoning
     text = re.sub(r"<think>[\s\S]*$", "", text)
-    # Extract first '{' to last '}'
+
+    # 1. Look for ```json ... ``` code fence
+    fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    if fenced:
+        cand = fenced.group(1).strip()
+        try:
+            json.loads(cand)
+            return cand
+        except Exception:
+            pass
+
+    # 2. Balanced bracket scan finding a valid JSON object with "weather"
+    pos = 0
+    while True:
+        start = text.find("{", pos)
+        if start == -1:
+            break
+        depth = 0
+        in_string = False
+        escape = False
+        end = -1
+        for i in range(start, len(text)):
+            c = text[i]
+            if escape:
+                escape = False
+                continue
+            if c == "\\" and in_string:
+                escape = True
+                continue
+            if c == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i
+                        break
+        if end != -1:
+            cand = text[start:end+1]
+            if '"weather"' in cand:
+                try:
+                    json.loads(cand)
+                    return cand
+                except Exception:
+                    pass
+            pos = start + 1
+        else:
+            break
+
+    # 3. Fallback
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and start < end:
@@ -290,6 +342,32 @@ def root():
 def health():
     return {"status": "ok", "time": time.time()}
 
+async def fetch_tavily_grounding(prompt: str) -> Optional[str]:
+    """Retrieves real-world atmospheric grounding from Tavily AI search."""
+    if not TAVILY_API_KEY or TAVILY_API_KEY.startswith("YOUR_"):
+        return None
+    try:
+        query = f"current weather conditions and sensory atmosphere for {prompt[:80]}"
+        payload = {
+            "api_key": TAVILY_API_KEY,
+            "query": query,
+            "search_depth": "basic",
+            "include_answer": True,
+            "max_results": 2
+        }
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.post("https://api.tavily.com/search", json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("answer"):
+                    return str(data["answer"]).strip()
+                results = data.get("results", [])
+                if results and results[0].get("content"):
+                    return str(results[0]["content"]).strip()[:240]
+    except Exception as exc:
+        print(f"Tavily search notice: {exc}")
+    return None
+
 @app.post("/v1/scene", response_model=SceneResponse)
 @app.post("/scene", response_model=SceneResponse)
 async def generate_scene(
@@ -314,7 +392,12 @@ async def generate_scene(
     if not NEBIUS_API_KEY or NEBIUS_API_KEY.startswith("YOUR_"):
         return FALLBACK_CALM
 
+    # 1. Fetch real-world grounding via Tavily AI Search (if key provided)
+    grounding = await fetch_tavily_grounding(req.emotion)
+
     user_prompt = f"Emotion: {req.emotion.strip()}"
+    if grounding:
+        user_prompt += f"\nReal-world atmospheric grounding (via Tavily search): {grounding}\nBlend this real-world sensory context with the emotion."
     if req.history:
         recent = ", ".join(req.history[-3:])
         user_prompt += f"\nRecent emotional atmosphere context: {recent}"
@@ -359,7 +442,8 @@ async def generate_scene(
 
         return SceneResponse(
             weather=WeatherState(**clean_weather),
-            palette=ColorPalette(**clean_palette) if clean_palette else None
+            palette=ColorPalette(**clean_palette) if clean_palette else None,
+            grounding=grounding
         )
 
     except Exception as exc:
