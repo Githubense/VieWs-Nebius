@@ -645,21 +645,26 @@ final class AudioEngineService: @unchecked Sendable {
             engine.connect(thunderReverbs[i], to: mixerNode,         format: nil)
         }
 
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: .mixWithOthers)
-            try AVAudioSession.sharedInstance().setActive(true)
-            engine.prepare()
-            try engine.start()
-        } catch {
-            print("AudioEngineService: failed to start — \(error)")
+        // Activate audio session and start engine off the main thread to prevent UI hang risk
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: .mixWithOthers)
+                try AVAudioSession.sharedInstance().setActive(true)
+                self.engine.prepare()
+                try self.engine.start()
+                DispatchQueue.main.async {
+                    self.thunderPlayers.forEach { $0.play() }
+                }
+            } catch {
+                print("AudioEngineService: failed to start — \(error)")
+            }
         }
 
         // 60 Hz timer: EQ modulation + thunder scheduling + master volume
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             self?.onMainThreadTick(dt: 1.0 / 60.0)
         }
-
-        thunderPlayers.forEach { $0.play() }
     }
 
     // MARK: - Thunder playback
