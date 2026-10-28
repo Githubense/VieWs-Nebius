@@ -44,7 +44,8 @@ targets: [
             name: "AppModule",
             path: ".",
             resources: [
-                .process("Resources")
+                .process("Resources"),
+                .process("Assets.xcassets")
             ]
         )
     ]    
