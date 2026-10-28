@@ -7,6 +7,8 @@ Secrets.swift
 **/Secrets.swift
 !Secrets.example.swift
 !**/Secrets.example.swift
+!Secrets.swift.example
+!**/Secrets.swift.example
 .env
 *.env
 
