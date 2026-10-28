@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY", "")
-NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
+NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/").rstrip("/")
 APP_TOKEN = os.getenv("APP_TOKEN", "")  # Optional shared secret header
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "40"))
@@ -331,12 +331,12 @@ async def generate_scene(
             {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.7,
-        "max_tokens": 900,
+        "max_tokens": 1500,
         "response_format": {"type": "json_object"}
     }
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 f"{NEBIUS_BASE_URL}/chat/completions",
                 headers=headers,
@@ -348,7 +348,8 @@ async def generate_scene(
             return FALLBACK_STORM
 
         data = resp.json()
-        content = data["choices"][0]["message"]["content"]
+        msg = data["choices"][0]["message"]
+        content = msg.get("content") or msg.get("reasoning") or msg.get("reasoning_content") or ""
         extracted = extract_json(content)
         parsed = json.loads(extracted)
 

@@ -164,7 +164,7 @@ actor NebiusClient {
                 ["role": "user",   "content": user]
             ],
             "temperature": 0.7,
-            "max_tokens": 900,
+            "max_tokens": 1500,
             "stream": false
         ]
         switch mode {
@@ -187,14 +187,25 @@ actor NebiusClient {
         }
 
         struct Chat: Decodable {
-            struct Choice: Decodable { struct Msg: Decodable { let content: String? }; let message: Msg }
+            struct Choice: Decodable {
+                struct Msg: Decodable {
+                    let content: String?
+                    let reasoning: String?
+                    let reasoning_content: String?
+                }
+                let message: Msg
+            }
             let choices: [Choice]
         }
         let chat = try JSONDecoder().decode(Chat.self, from: data)
-        guard let content = chat.choices.first?.message.content, !content.isEmpty else {
-            throw NebiusError.emptyResponse
+        guard let choice = chat.choices.first else { throw NebiusError.emptyResponse }
+        if let content = choice.message.content, !content.isEmpty {
+            return content
         }
-        return content
+        if let reasoning = choice.message.reasoning ?? choice.message.reasoning_content, !reasoning.isEmpty {
+            return reasoning
+        }
+        throw NebiusError.emptyResponse
     }
 
     // MARK: Parsing (static so it can be unit-tested without the network)
