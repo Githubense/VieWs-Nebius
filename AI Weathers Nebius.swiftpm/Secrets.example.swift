@@ -13,11 +13,11 @@ enum Secrets {
     /// Leave as placeholder if using `nebiusProxyURL`.
     static let nebiusAPIKey = "YOUR_NEBIUS_API_KEY"
 
-    /// Exact model ID copied from the console: Models → "Copy model ID" (an NVIDIA Nemotron model).
-    static let nebiusModel = "PASTE_MODEL_ID_FROM_CONSOLE"
+    /// Verified NVIDIA Nemotron model ID on Token Factory.
+    static let nebiusModel = "nvidia/Nemotron-3_5-Lightning"
 
     /// OpenAI-compatible base URL of Nebius Token Factory.
-    static let nebiusBaseURL = "https://api.tokenfactory.nebius.com/v1/"
+    static let nebiusBaseURL = "https://api.tokenfactory.eu-north1.nebius.com/v1/"
 
     /// Deployed Nebius Serverless Endpoints proxy URL (e.g. "https://<endpoint-id>.nebius.cloud").
     /// When set to a valid URL, the app routes requests to the proxy without requiring a client-side API key.
