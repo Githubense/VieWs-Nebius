@@ -6,5 +6,10 @@
 	<string>VieWs listens to your voice so you can describe how you feel and generate a matching atmosphere.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>VieWs transcribes what you say to describe how you feel and create a personalized atmosphere.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
