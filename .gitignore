@@ -1,0 +1,38 @@
+# Original baseline folder and old assets
+VieWs.swiftpm/
+*.pixabay_backup
+
+# Secrets and Keys (CRITICAL: Never commit real API keys)
+Secrets.swift
+**/Secrets.swift
+!Secrets.example.swift
+!**/Secrets.example.swift
+.env
+*.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode / SwiftPM
+.build/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+xcuserdata/
+*.xcuserstate
+DerivedData/
+**/.swiftpm/xcode/
+
+# Python / FastAPI Proxy
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
