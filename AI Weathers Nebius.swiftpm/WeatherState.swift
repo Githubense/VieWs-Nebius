@@ -49,6 +49,61 @@ struct WeatherState: Codable, Sendable {
         "warm", "cool", "neutral", "melancholy", "golden",
         "crimson", "dusk", "arctic", "ember", "ash"
     ]
+
+    enum CodingKeys: String, CodingKey {
+        case sceneTitle, atmosphereDescription, precipitation, windSpeed, fogDensity
+        case snowIntensity, clearness, lightningFrequency, colorTemperature
+    }
+
+    init(
+        sceneTitle: String,
+        atmosphereDescription: String,
+        precipitation: Double,
+        windSpeed: Double,
+        fogDensity: Double,
+        snowIntensity: Double,
+        clearness: Double,
+        lightningFrequency: Double,
+        colorTemperature: String
+    ) {
+        self.sceneTitle = sceneTitle
+        self.atmosphereDescription = atmosphereDescription
+        self.precipitation = precipitation
+        self.windSpeed = windSpeed
+        self.fogDensity = fogDensity
+        self.snowIntensity = snowIntensity
+        self.clearness = clearness
+        self.lightningFrequency = lightningFrequency
+        self.colorTemperature = colorTemperature
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        sceneTitle = (try? container.decode(String.self, forKey: .sceneTitle)) ?? "Ambient Sky"
+        atmosphereDescription = (try? container.decode(String.self, forKey: .atmosphereDescription)) ?? "A quiet atmosphere settles gently over the landscape."
+
+        func decodeDouble(_ key: CodingKeys, defaultVal: Double = 0.0) -> Double {
+            if let d = try? container.decode(Double.self, forKey: key) { return d }
+            if let i = try? container.decode(Int.self, forKey: key) { return Double(i) }
+            if let s = try? container.decode(String.self, forKey: key), let d = Double(s) { return d }
+            return defaultVal
+        }
+
+        precipitation = decodeDouble(.precipitation)
+        windSpeed = decodeDouble(.windSpeed, defaultVal: 0.2)
+        fogDensity = decodeDouble(.fogDensity)
+        snowIntensity = decodeDouble(.snowIntensity)
+        clearness = decodeDouble(.clearness, defaultVal: 0.5)
+        lightningFrequency = decodeDouble(.lightningFrequency)
+
+        let rawTemp = (try? container.decode(String.self, forKey: .colorTemperature))?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) ?? "neutral"
+        if Self.allowedColorTemperatures.contains(rawTemp) {
+            colorTemperature = rawTemp
+        } else {
+            colorTemperature = "neutral"
+        }
+    }
 }
 
 // MARK: - Sanitization

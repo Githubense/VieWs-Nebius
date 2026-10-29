@@ -54,8 +54,8 @@ enum NebiusError: Error, CustomStringConvertible {
 
 // MARK: - Payload returned by the model
 
-/// One model response carries both the weather and (optionally) the colour palette,
-/// so a single network round-trip drives the whole scene.
+/// One model response carries either a direct `WeatherState` (matching original guided generation)
+/// or a wrapped payload containing both `weather` and `palette`.
 struct WeatherPayload: Decodable, Sendable {
     var weather: WeatherState
     var palette: ColorPalette?
@@ -63,10 +63,14 @@ struct WeatherPayload: Decodable, Sendable {
     private enum CodingKeys: String, CodingKey { case weather, palette }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        weather = try c.decode(WeatherState.self, forKey: .weather)
-        // A malformed palette must never block the scene; the UI already handles `nil`.
-        palette = try? c.decodeIfPresent(ColorPalette.self, forKey: .palette)
+        if let c = try? decoder.container(keyedBy: CodingKeys.self), c.contains(.weather) {
+            weather = try c.decode(WeatherState.self, forKey: .weather)
+            palette = try? c.decodeIfPresent(ColorPalette.self, forKey: .palette)
+        } else {
+            // Direct root WeatherState
+            weather = try WeatherState(from: decoder)
+            palette = nil
+        }
     }
 }
 
@@ -77,12 +81,12 @@ actor NebiusClient {
     static let shared = NebiusClient()
 
     private enum Mode: String { case jsonSchema = "json_schema", jsonObject = "json_object", none }
-    private var mode: Mode = Mode(rawValue: Secrets.responseMode) ?? .jsonObject
+    private var mode: Mode = Mode(rawValue: Secrets.responseMode) ?? .none
 
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForRequest = 25
-        cfg.timeoutIntervalForResource = 40
+        cfg.timeoutIntervalForRequest = 60
+        cfg.timeoutIntervalForResource = 90
         return URLSession(configuration: cfg)
     }()
 
@@ -169,8 +173,8 @@ actor NebiusClient {
                 ["role": "system", "content": system],
                 ["role": "user",   "content": user]
             ],
-            "temperature": 0.7,
-            "max_tokens": 1500,
+            "temperature": 0.4,
+            "max_tokens": 3000,
             "stream": false
         ]
         switch mode {
@@ -236,15 +240,21 @@ actor NebiusClient {
         }
         if let open = text.range(of: "<think>") { text.removeSubrange(open.lowerBound..<text.endIndex) }
 
-        // 2. Check for fenced code block ```json ... ```
+        // 2. Check for fenced code block ```json ... ``` or ``` ... ```
         if let startFence = text.range(of: "```json"), let endFence = text.range(of: "```", range: startFence.upperBound..<text.endIndex) {
             let fenced = String(text[startFence.upperBound..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             if (try? JSONSerialization.jsonObject(with: Data(fenced.utf8))) != nil {
                 return fenced
             }
         }
+        if let startFence = text.range(of: "```"), let endFence = text.range(of: "```", range: startFence.upperBound..<text.endIndex) {
+            let fenced = String(text[startFence.upperBound..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if (try? JSONSerialization.jsonObject(with: Data(fenced.utf8))) != nil {
+                return fenced
+            }
+        }
 
-        // 3. Scan for balanced JSON object containing "weather"
+        // 3. Scan for balanced JSON object containing weather keys
         var searchIndex = text.startIndex
         while searchIndex < text.endIndex, let openBrace = text[searchIndex...].firstIndex(of: "{") {
             var depth = 0
@@ -281,7 +291,7 @@ actor NebiusClient {
 
             if let close = closeBrace {
                 let candidate = String(text[openBrace...close])
-                if candidate.contains("\"weather\""),
+                if (candidate.contains("\"sceneTitle\"") || candidate.contains("\"weather\"") || candidate.contains("\"precipitation\"")),
                    let data = candidate.data(using: .utf8),
                    (try? JSONSerialization.jsonObject(with: data)) != nil {
                     return candidate
