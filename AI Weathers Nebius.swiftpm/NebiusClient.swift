@@ -59,18 +59,27 @@ enum NebiusError: Error, CustomStringConvertible {
 struct WeatherPayload: Decodable, Sendable {
     var weather: WeatherState
     var palette: ColorPalette?
+    var grounding: String?
 
-    private enum CodingKeys: String, CodingKey { case weather, palette }
+    private enum CodingKeys: String, CodingKey { case weather, palette, grounding }
 
     init(from decoder: Decoder) throws {
         if let c = try? decoder.container(keyedBy: CodingKeys.self), c.contains(.weather) {
             weather = try c.decode(WeatherState.self, forKey: .weather)
             palette = try? c.decodeIfPresent(ColorPalette.self, forKey: .palette)
+            grounding = try? c.decodeIfPresent(String.self, forKey: .grounding)
         } else {
             // Direct root WeatherState
             weather = try WeatherState(from: decoder)
             palette = nil
+            grounding = nil
         }
+    }
+
+    init(weather: WeatherState, palette: ColorPalette?, grounding: String? = nil) {
+        self.weather = weather
+        self.palette = palette
+        self.grounding = grounding
     }
 }
 
@@ -101,15 +110,21 @@ actor NebiusClient {
 
         // Enforce natural language emotion grounding via Tavily AI web retrieval
         var promptUser = user
+        var liveGrounding: String? = nil
         if let grounding = await fetchTavilyGrounding(for: user) {
             promptUser += "\nReal-world atmospheric grounding (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
+            liveGrounding = grounding
         }
 
         var attempt = 0
         while true {
             do {
                 let text = try await send(system: system, user: promptUser, base: base)
-                return try Self.decodePayload(from: text)
+                var payload = try Self.decodePayload(from: text)
+                if payload.grounding == nil {
+                    payload.grounding = liveGrounding
+                }
+                return payload
             } catch NebiusError.http(let status, let body) {
                 attempt += 1
                 if status == 400, let lower = downgraded(mode) {

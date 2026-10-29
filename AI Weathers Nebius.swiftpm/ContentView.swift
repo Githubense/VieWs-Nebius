@@ -160,6 +160,46 @@ struct ContentView: View {
         }
     }
 
+    /// Formatted real-world atmospheric hint when live weather data is pulled from Tavily.
+    private var formattedGroundingHint: String? {
+        guard let raw = aiService.currentGrounding?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        return Self.formatGrounding(raw)
+    }
+
+    /// Extracts a subtle, elegant atmospheric hint (e.g. "new york is 17°c, sunny").
+    static func formatGrounding(_ raw: String) -> String? {
+        guard !raw.isEmpty else { return nil }
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip leading date/time stamps (e.g., "As of 06:30 PM on 19 October 2026, ")
+        if let regex = try? NSRegularExpression(pattern: #"^As of \d{1,2}:\d{2}\s*(?:AM|PM)?(?:\s*on\s*[^,]+)?,?\s*"#, options: .caseInsensitive) {
+            text = regex.stringByReplacingMatches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count), withTemplate: "")
+        }
+
+        // Pattern 1: "<City>'s weather is <condition> with a temperature of <temp>"
+        let p1 = #"([A-Za-z\s]+?)(?:'s)?\s*weather is\s*([^,\.]+?)\s*with a temperature of\s*(\d+°[CF])"#
+        if let regex = try? NSRegularExpression(pattern: p1, options: .caseInsensitive),
+           let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)),
+           let cityRange = Range(match.range(at: 1), in: text),
+           let condRange = Range(match.range(at: 2), in: text),
+           let tempRange = Range(match.range(at: 3), in: text) {
+            var city = String(text[cityRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            city = city.replacingOccurrences(of: "City", with: "", options: .caseInsensitive).trimmingCharacters(in: .whitespacesAndNewlines)
+            let cond = String(text[condRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let temp = String(text[tempRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            return "\(city.lowercased()) is \(temp.lowercased()), \(cond.lowercased())"
+        }
+
+        // Pattern 2: Look for temperature and condition in the first clause
+        let firstClause = text.components(separatedBy: CharacterSet(charactersIn: ".;\n")).first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if (firstClause.contains("°C") || firstClause.contains("°F")) && firstClause.count <= 65 {
+            return firstClause.lowercased()
+        }
+
+        return nil
+    }
+
     var body: some View {
         ZStack {
             // ── Layer 1: Background color ─────────────────────────────────
@@ -400,17 +440,27 @@ struct ContentView: View {
     private func resultDisplay(for weather: WeatherState) -> some View {
         let textColor = paletteText
         let displayTitle = pinnedTitle ?? weather.sceneTitle
-        // Tap title to enter edit mode
-        Button {
-            editingTitleText = displayTitle
-            isEditingTitle = true
-        } label: {
-            Text(displayTitle)
-                .font(Theme.titleFont())
-                .foregroundColor(textColor)
-                .opacity(0.88)
+        VStack(spacing: 7) {
+            // Tap title to enter edit mode
+            Button {
+                editingTitleText = displayTitle
+                isEditingTitle = true
+            } label: {
+                Text(displayTitle)
+                    .font(Theme.titleFont())
+                    .foregroundColor(textColor)
+                    .opacity(0.88)
+            }
+            .buttonStyle(.plain)
+
+            if let hint = formattedGroundingHint {
+                Text(hint)
+                    .font(.system(size: 13, weight: .light, design: .serif))
+                    .foregroundColor(paletteHint)
+                    .opacity(0.75)
+                    .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
         .transition(.opacity.combined(with: .scale(scale: 0.97)))
         .accessibilityLabel("\(displayTitle). \(weather.atmosphereDescription)")
         .accessibilityHint("Double tap to edit and regenerate")
@@ -420,16 +470,26 @@ struct ContentView: View {
     private func titleEditField(for weather: WeatherState) -> some View {
         let textColor = paletteText
 
-        TextField("", text: $editingTitleText)
-            .font(Theme.titleFont())
-            .foregroundColor(textColor)
-            .multilineTextAlignment(.center)
-            .focused($isTitleFocused)
-            .onSubmit { submitTitleEdit() }
-            .padding(.horizontal, 40)
-            .onAppear { isTitleFocused = true }
-            .accessibilityLabel("Scene title")
-            .accessibilityHint("Submit to regenerate atmosphere")
+        VStack(spacing: 7) {
+            TextField("", text: $editingTitleText)
+                .font(Theme.titleFont())
+                .foregroundColor(textColor)
+                .multilineTextAlignment(.center)
+                .focused($isTitleFocused)
+                .onSubmit { submitTitleEdit() }
+                .padding(.horizontal, 40)
+                .onAppear { isTitleFocused = true }
+                .accessibilityLabel("Scene title")
+                .accessibilityHint("Submit to regenerate atmosphere")
+
+            if let hint = formattedGroundingHint {
+                Text(hint)
+                    .font(.system(size: 13, weight: .light, design: .serif))
+                    .foregroundColor(paletteHint)
+                    .opacity(0.45)
+                    .transition(.opacity)
+            }
+        }
     }
 
     @ViewBuilder
@@ -688,6 +748,7 @@ struct ContentView: View {
         // Update AI service so the result display renders correctly
         aiService.currentWeatherState = weather
         aiService.currentPalette      = palette
+        aiService.currentGrounding    = nil
 
         // UI state
         pinnedTitle  = exp.sceneTitle
@@ -752,6 +813,7 @@ struct ContentView: View {
         withAnimation(.easeInOut(duration: 0.4)) { inputVisible = true }
         aiService.currentWeatherState = nil
         aiService.currentPalette = nil
+        aiService.currentGrounding = nil
         // Revert to original Theme colors on the homescreen.
         displayedPalette = nil
         isEditingTitle = false

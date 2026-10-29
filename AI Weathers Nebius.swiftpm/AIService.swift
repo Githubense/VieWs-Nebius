@@ -15,6 +15,7 @@ class AIService {
     var isModelReady: Bool = NebiusConfig.isConfigured
     var currentWeatherState: WeatherState?
     var currentPalette: ColorPalette?
+    var currentGrounding: String?
     var isLoading: Bool = false
 
     private init() {}
@@ -61,6 +62,7 @@ class AIService {
             // Not configured (fresh clone without a key): friendly fallback instead of a crash.
             currentWeatherState = Self.notConfiguredFallback
             currentPalette = nil
+            currentGrounding = nil
             return
         }
 
@@ -80,6 +82,7 @@ class AIService {
             let sanitizedWeather = payload.weather.sanitized()
             currentWeatherState = sanitizedWeather
             currentPalette = Self.validated(payload.palette) ?? Self.proceduralPalette(for: sanitizedWeather)
+            currentGrounding = payload.grounding
         } catch {
             // If the task was cancelled (user tapped back), discard silently.
             if Task.isCancelled || error is CancellationError { return }
@@ -87,6 +90,7 @@ class AIService {
             print("Error generating weather state: \(error)")
             currentWeatherState = Self.errorFallback
             currentPalette = nil
+            currentGrounding = nil
         }
     }
 
