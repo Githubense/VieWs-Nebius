@@ -120,10 +120,13 @@ actor NebiusClient {
         let cleanEmotion = user.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         if let loc = Self.detectLocation(in: cleanEmotion) {
             detectedLocation = loc
+            print("[VieWs][Location] Detected '\(loc)' — fetching live Tavily grounding...")
             if let grounding = await fetchTavilyGrounding(forLocation: loc) {
                 promptUser += "\nReal-world atmospheric grounding for \(loc) (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
                 liveGrounding = grounding
             }
+        } else {
+            print("[VieWs][Location] Pure emotion — skipping Tavily grounding.")
         }
 
         var attempt = 0
@@ -162,7 +165,7 @@ actor NebiusClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 3.5
+        request.timeoutInterval = 7.0
 
         let query = "current weather in \(location) today conditions temperature sky"
         let body: [String: Any] = [
@@ -170,7 +173,7 @@ actor NebiusClient {
             "query": query,
             "search_depth": "basic",
             "include_answer": true,
-            "max_results": 5
+            "max_results": 3
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
@@ -178,7 +181,11 @@ actor NebiusClient {
 
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                print("[VieWs][Tavily] HTTP error: \(code)")
+                return nil
+            }
             struct TavilyResult: Decodable {
                 let content: String?
             }
@@ -199,8 +206,11 @@ actor NebiusClient {
                     print("[VieWs][Tavily] Grounding snippet: \(snippet.prefix(90))...")
                     return snippet
                 }
+            } else {
+                print("[VieWs][Tavily] Response JSON decoding failed")
             }
         } catch {
+            print("[VieWs][Tavily] Network error/timeout: \(error.localizedDescription)")
             return nil
         }
         return nil

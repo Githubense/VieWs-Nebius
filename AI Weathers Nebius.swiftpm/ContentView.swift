@@ -231,15 +231,21 @@ struct ContentView: View {
             resolvedLocation = "live atmosphere"
         }
 
+        let hint: String?
         if let temp = tempStr, let cond = matchedCond {
-            return "\(resolvedLocation) is \(temp), \(cond)"
+            hint = "\(resolvedLocation) is \(temp), \(cond)"
         } else if let temp = tempStr {
-            return "\(resolvedLocation) is \(temp)"
+            hint = "\(resolvedLocation) is \(temp)"
         } else if let cond = matchedCond {
-            return "\(resolvedLocation) is \(cond)"
+            hint = "\(resolvedLocation) is \(cond)"
+        } else {
+            hint = nil
         }
 
-        return nil
+        if let hint {
+            print("[VieWs][Hint] Atmospheric subtitle: '\(hint)'")
+        }
+        return hint
     }
 
     var body: some View {
