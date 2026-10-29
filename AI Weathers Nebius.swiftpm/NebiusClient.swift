@@ -216,15 +216,15 @@ actor NebiusClient {
         return nil
     }
 
-    /// Fast, zero-network check to detect if the user input contains a location reference.
-    /// If found, returns the clean location name (e.g. "Chiapas", "New York", "Paris").
-    /// If it is purely an emotion or psychological state, returns nil (saving network/search quota).
+    /// Universal grammatical-semantic check to detect if the user input contains a location reference.
+    /// Operates without static city dictionaries by analyzing spatial prepositions and destination phrasing,
+    /// while strictly filtering out internal psychological/emotional states and personal pronouns.
     static func detectLocation(in text: String) -> String? {
         let clean = text.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return nil }
         let lower = clean.lowercased()
 
-        // 1. Common abbreviations
+        // 1. Regional abbreviations
         let abbrevs: [String: String] = [
             "ny": "New York", "nyc": "New York", "la": "Los Angeles", "sf": "San Francisco",
             "cdmx": "Mexico City", "dc": "Washington D.C."
@@ -237,81 +237,53 @@ actor NebiusClient {
             }
         }
 
-        // 2. Known multi-word cities
-        let multiWordCities = [
-            "new york", "san francisco", "mexico city", "los angeles", "buenos aires",
-            "rio de janeiro", "puerto rico", "costa rica", "hong kong", "san diego",
-            "las vegas", "san cristobal", "san miguel", "puerto vallarta"
-        ]
-        for mwc in multiWordCities {
-            let p = #"\b"# + NSRegularExpression.escapedPattern(for: mwc) + #"\b"#
-            if let regex = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
-               regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
-                return mwc.capitalized
-            }
-        }
-
-        // 3. Known single-word global locations (cities, Mexican states/destinations, countries)
-        let globalLocations: Set<String> = [
-            // Mexico & Americas
-            "chiapas", "oaxaca", "mexico", "cancun", "guadalajara", "monterrey", "puebla",
-            "yucatan", "merida", "tijuana", "queretaro", "veracruz", "toluca", "acapulco",
-            "chicago", "miami", "seattle", "austin", "boston", "denver", "portland",
-            "toronto", "vancouver", "montreal", "bogota", "medellin", "lima", "santiago",
-            "havana", "san juan", "patagonia",
-            // Europe
-            "paris", "london", "berlin", "madrid", "barcelona", "rome", "milan", "florence",
-            "venice", "amsterdam", "vienna", "prague", "budapest", "zurich", "geneva",
-            "dublin", "edinburgh", "copenhagen", "stockholm", "oslo", "helsinki", "reykjavik",
-            "athens", "lisbon", "porto", "munich", "frankfurt", "brussels",
-            // Asia, Oceania, Middle East, Africa
-            "tokyo", "kyoto", "osaka", "seoul", "beijing", "shanghai", "taipei", "singapore",
-            "bangkok", "bali", "mumbai", "delhi", "dubai", "doha", "hanoi", "sydney",
-            "melbourne", "auckland", "cairo", "marrakech",
-            // Countries
-            "japan", "italy", "france", "spain", "germany", "greece", "norway", "sweden",
-            "iceland", "switzerland", "ireland", "scotland", "brazil", "argentina", "chile",
-            "colombia", "peru", "korea", "china", "india", "australia", "canada"
-        ]
-        for loc in globalLocations {
-            let p = #"\b"# + NSRegularExpression.escapedPattern(for: loc) + #"\b"#
-            if let regex = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
-               regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
-                return loc.capitalized
-            }
-        }
-
-        // Filter out non-location emotional / abstract words
-        let nonLocations: Set<String> = [
-            "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
-            "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
-            "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe",
-            "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
+        // 2. Emotional, psychological, and abstract terms that should NEVER trigger weather searches
+        let abstractWords: Set<String> = [
+            // Internal feelings & mental states
+            "love", "pain", "peace", "grief", "silence", "fear", "doubt", "darkness",
+            "light", "hope", "despair", "chaos", "thought", "thoughts", "pieces", "shambles",
+            "awe", "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
             "anxiety", "exhausted", "exhaustion", "cozy", "nostalgic", "nostalgia",
             "dreamy", "serene", "lonely", "loneliness", "hopeful", "overwhelmed", "calm",
             "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
             "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
             "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
-            "today", "yesterday", "tomorrow", "day", "night", "morning", "evening", "moment"
+            // Pronouns & grammatical objects
+            "you", "me", "him", "her", "them", "us", "it", "this", "that", "all", "my",
+            "your", "his", "their", "our", "a", "an", "the", "bed", "mind", "home", "work",
+            "tears", "today", "yesterday", "tomorrow", "day", "night", "morning", "evening",
+            "moment", "time", "life", "world", "here", "there", "school"
         ]
 
-        // 4. Preposition extraction: "in Banff", "miss Florence", "sunset over Aspen", "rain in Kyoto"
-        let prepPattern = #"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z]+)"#
+        // 3. Universal Spatial Prepositions: "in [Place]", "miss [Place]", "visiting [Place]", "over [Place]", "around [Place]"
+        // Catches any city, town, pueblo, or mountain in the world (e.g. Banff, Monterrey, Tepoztlan, Shibuya, Chiapas)
+        let prepPattern = #"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z\s]+)"#
         if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: clean, options: [], range: NSRange(location: 0, length: clean.utf16.count)),
            let targetRange = Range(match.range(at: 1), in: clean) {
-            let target = String(clean[targetRange]).lowercased()
-            if !nonLocations.contains(target) && target.count > 2 {
-                return String(clean[targetRange]).capitalized
+            let candidate = String(clean[targetRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let words = candidate.components(separatedBy: CharacterSet.whitespacesAndNewlines).filter { !$0.isEmpty }
+            if let first = words.first {
+                let firstLower = first.lowercased()
+                if !abstractWords.contains(firstLower) && firstLower.count > 2 {
+                    if words.count >= 2 {
+                        let secondLower = words[1].lowercased()
+                        if !abstractWords.contains(secondLower) {
+                            return "\(first.capitalized) \(words[1].capitalized)"
+                        }
+                    }
+                    return first.capitalized
+                }
             }
         }
 
-        // 5. Standalone single-word query if not in nonLocations: e.g. "Banff", "Aspen", "Palenque"
+        // 4. Standalone destination query (1 to 2 words):
+        // If the user simply types "Monterrey", "Chiapas", "Banff", "Paris", or "San Cristobal",
+        // and neither word is an abstract emotion, it is a physical destination!
         let words = clean.components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
-        if words.count == 1 {
-            let single = words[0].lowercased()
-            if !nonLocations.contains(single) && single.count > 2 {
-                return words[0].capitalized
+        if words.count >= 1 && words.count <= 2 {
+            if words.allSatisfy({ !abstractWords.contains($0.lowercased()) && $0.count > 2 }) {
+                return words.map { $0.capitalized }.joined(separator: " ")
             }
         }
 

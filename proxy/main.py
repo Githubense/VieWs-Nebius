@@ -343,17 +343,21 @@ def root():
 def health():
     return {"status": "ok", "time": time.time()}
 
-NON_LOCATIONS = {
-    "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
-    "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
-    "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe",
-    "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
+ABSTRACT_WORDS = {
+    # Internal feelings & mental states
+    "love", "pain", "peace", "grief", "silence", "fear", "doubt", "darkness",
+    "light", "hope", "despair", "chaos", "thought", "thoughts", "pieces", "shambles",
+    "awe", "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
     "anxiety", "exhausted", "exhaustion", "cozy", "nostalgic", "nostalgia",
     "dreamy", "serene", "lonely", "loneliness", "hopeful", "overwhelmed", "calm",
     "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
     "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
     "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
-    "today", "yesterday", "tomorrow", "day", "night", "morning", "evening", "moment"
+    # Pronouns & grammatical objects
+    "you", "me", "him", "her", "them", "us", "it", "this", "that", "all", "my",
+    "your", "his", "their", "our", "a", "an", "the", "bed", "mind", "home", "work",
+    "tears", "today", "yesterday", "tomorrow", "day", "night", "morning", "evening",
+    "moment", "time", "life", "world", "here", "there", "school"
 }
 
 LOCATION_ABBREVS = {
@@ -361,31 +365,8 @@ LOCATION_ABBREVS = {
     "cdmx": "Mexico City", "dc": "Washington D.C."
 }
 
-MULTI_WORD_CITIES = [
-    "new york", "san francisco", "mexico city", "los angeles", "buenos aires",
-    "rio de janeiro", "puerto rico", "costa rica", "hong kong", "san diego",
-    "las vegas", "san cristobal", "san miguel", "puerto vallarta"
-]
-
-GLOBAL_LOCATIONS = {
-    "chiapas", "oaxaca", "mexico", "cancun", "guadalajara", "monterrey", "puebla",
-    "yucatan", "merida", "tijuana", "queretaro", "veracruz", "toluca", "acapulco",
-    "chicago", "miami", "seattle", "austin", "boston", "denver", "portland",
-    "toronto", "vancouver", "montreal", "bogota", "medellin", "lima", "santiago",
-    "havana", "san juan", "patagonia", "paris", "london", "berlin", "madrid",
-    "barcelona", "rome", "milan", "florence", "venice", "amsterdam", "vienna",
-    "prague", "budapest", "zurich", "geneva", "dublin", "edinburgh", "copenhagen",
-    "stockholm", "oslo", "helsinki", "reykjavik", "athens", "lisbon", "porto",
-    "munich", "frankfurt", "brussels", "tokyo", "kyoto", "osaka", "seoul",
-    "beijing", "shanghai", "taipei", "singapore", "bangkok", "bali", "mumbai",
-    "delhi", "dubai", "doha", "hanoi", "sydney", "melbourne", "auckland", "cairo",
-    "marrakech", "japan", "italy", "france", "spain", "germany", "greece", "norway",
-    "sweden", "iceland", "switzerland", "ireland", "scotland", "brazil", "argentina",
-    "chile", "colombia", "peru", "korea", "china", "india", "australia", "canada"
-}
-
 def detect_location(text: str) -> Optional[str]:
-    """Fast check to extract a location name if referenced, or None if purely an emotion."""
+    """Universal grammatical-semantic check to extract a location name if referenced, or None if purely an emotion."""
     clean = text.replace("Emotion: ", "").strip()
     if not clean:
         return None
@@ -396,29 +377,23 @@ def detect_location(text: str) -> Optional[str]:
         if re.search(r"\b" + re.escape(abbr) + r"\b", lower):
             return full
 
-    # 2. Multi-word cities
-    for mwc in MULTI_WORD_CITIES:
-        if re.search(r"\b" + re.escape(mwc) + r"\b", lower):
-            return mwc.title()
-
-    # 3. Known single-word global locations
-    for loc in GLOBAL_LOCATIONS:
-        if re.search(r"\b" + re.escape(loc) + r"\b", lower):
-            return loc.title()
-
-    # 4. Preposition extraction: "in Banff", "miss Florence", "sunset over Aspen"
-    m = re.search(r"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z]+)", clean, re.IGNORECASE)
+    # 2. Universal Spatial Prepositions: "in [Place]", "miss [Place]", "visiting [Place]", "around [Place]"
+    m = re.search(r"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z\s]+)", clean, re.IGNORECASE)
     if m:
-        target = m.group(1).lower()
-        if target not in NON_LOCATIONS and len(target) > 2:
-            return m.group(1).title()
+        candidate = m.group(1).strip()
+        words = candidate.split()
+        if words:
+            first = words[0].lower()
+            if first not in ABSTRACT_WORDS and len(first) > 2:
+                if len(words) >= 2 and words[1].lower() not in ABSTRACT_WORDS:
+                    return f"{words[0].title()} {words[1].title()}"
+                return words[0].title()
 
-    # 5. Standalone single-word query if not in NON_LOCATIONS
+    # 3. Standalone query (1 to 2 words): if neither word is an abstract emotion, it is a destination
     words = re.findall(r"[A-Za-z]+", clean)
-    if len(words) == 1:
-        single = words[0].lower()
-        if single not in NON_LOCATIONS and len(single) > 2:
-            return words[0].title()
+    if 1 <= len(words) <= 2:
+        if all(w.lower() not in ABSTRACT_WORDS and len(w) > 2 for w in words):
+            return " ".join(w.title() for w in words)
 
     return None
 
