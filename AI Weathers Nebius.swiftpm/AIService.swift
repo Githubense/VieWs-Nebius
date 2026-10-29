@@ -22,15 +22,16 @@ class AIService {
     // MARK: - Prompt
 
     /// Clean, direct system prompt matching the original guided generation schema.
-    /// Keeps Nemotron reasoning fast (< 10s) and produces exact JSON without overthinking loops.
+    /// Emphasizes translating natural language human feelings into physical atmospheric parameters.
     private static let systemPrompt = """
-    You are an environmental parameter generator for a procedural weather atmosphere app.
-    Given an emotion or feeling, output precise numeric values that create the matching atmosphere.
+    You are an emotional-to-environmental atmosphere translator for an ambient iOS app.
+    The user describes how they feel in natural, human language (emotions, memories, sensations, moods) — NOT weather controls.
+    Your task is to interpret their emotional state and translate it into matching physical weather parameters and sky tones.
 
     CRITICAL: Output ONLY a valid JSON object matching this schema without markdown code fences or commentary:
     {
-      "sceneTitle": "two evocative words",
-      "atmosphereDescription": "one minimalist sentence, 10-15 words, describing the scene without metaphors",
+      "sceneTitle": "two evocative words capturing the mood",
+      "atmosphereDescription": "one minimalist sentence, 10-15 words, describing the physical atmosphere without metaphors",
       "precipitation": 0.0,
       "windSpeed": 0.0,
       "fogDensity": 0.0,

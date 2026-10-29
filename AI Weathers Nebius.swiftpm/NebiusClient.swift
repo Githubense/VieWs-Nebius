@@ -91,7 +91,7 @@ actor NebiusClient {
     }()
 
     /// Requests one weather scene. Routes through Nebius Serverless Endpoints proxy if configured;
-    /// otherwise calls Token Factory directly. Retries once on 429/5xx; downgrades JSON mode on a 400.
+    /// otherwise enriches natural language emotions with Tavily AI grounding and calls Token Factory directly.
     func generate(system: String, user: String) async throws -> WeatherPayload {
         if let proxy = NebiusConfig.proxyURL {
             return try await sendToProxy(proxyURL: proxy, user: user)
@@ -99,10 +99,16 @@ actor NebiusClient {
 
         guard NebiusConfig.isConfigured, let base = NebiusConfig.baseURL else { throw NebiusError.notConfigured }
 
+        // Enforce natural language emotion grounding via Tavily AI web retrieval
+        var promptUser = user
+        if let grounding = await fetchTavilyGrounding(for: user) {
+            promptUser += "\nReal-world atmospheric grounding (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
+        }
+
         var attempt = 0
         while true {
             do {
-                let text = try await send(system: system, user: user, base: base)
+                let text = try await send(system: system, user: promptUser, base: base)
                 return try Self.decodePayload(from: text)
             } catch NebiusError.http(let status, let body) {
                 attempt += 1
@@ -117,6 +123,48 @@ actor NebiusClient {
                 throw NebiusError.http(status: status, body: body)
             }
         }
+    }
+
+    /// Asynchronously fetches real-world atmospheric grounding from Tavily AI Search.
+    /// Fails gracefully with nil on timeout or missing key so generation is never blocked.
+    private func fetchTavilyGrounding(for emotion: String) async -> String? {
+        let key = Secrets.tavilyAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !key.hasPrefix("YOUR_") else { return nil }
+        guard let url = URL(string: "https://api.tavily.com/search") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 3.5
+
+        let cleanEmotion = emotion.replacingOccurrences(of: "Emotion: ", with: "")
+        let query = "sensory weather atmosphere and environmental conditions for feeling \(cleanEmotion.prefix(80))"
+        let body: [String: Any] = [
+            "api_key": key,
+            "query": query,
+            "search_depth": "basic",
+            "include_answer": true,
+            "max_results": 2
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        request.httpBody = httpBody
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+            struct TavilyResp: Decodable {
+                let answer: String?
+            }
+            if let parsed = try? JSONDecoder().decode(TavilyResp.self, from: data),
+               let answer = parsed.answer, !answer.isEmpty {
+                print("[VieWs][Tavily] Grounding fetched: \(answer.prefix(90))...")
+                return answer
+            }
+        } catch {
+            return nil
+        }
+        return nil
     }
 
     private func sendToProxy(proxyURL: URL, user: String) async throws -> WeatherPayload {
