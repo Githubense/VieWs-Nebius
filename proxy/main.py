@@ -121,6 +121,7 @@ class SceneResponse(BaseModel):
     weather: WeatherState
     palette: Optional[ColorPalette] = None
     grounding: Optional[str] = None
+    groundingLocation: Optional[str] = None
 
 # ── Fallback Defaults ─────────────────────────────────────────────────────────
 
@@ -342,28 +343,110 @@ def root():
 def health():
     return {"status": "ok", "time": time.time()}
 
-async def fetch_tavily_grounding(prompt: str) -> Optional[str]:
-    """Retrieves real-world atmospheric grounding from Tavily AI search."""
+NON_LOCATIONS = {
+    "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
+    "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
+    "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe",
+    "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
+    "anxiety", "exhausted", "exhaustion", "cozy", "nostalgic", "nostalgia",
+    "dreamy", "serene", "lonely", "loneliness", "hopeful", "overwhelmed", "calm",
+    "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
+    "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
+    "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
+    "today", "yesterday", "tomorrow", "day", "night", "morning", "evening", "moment"
+}
+
+LOCATION_ABBREVS = {
+    "ny": "New York", "nyc": "New York", "la": "Los Angeles", "sf": "San Francisco",
+    "cdmx": "Mexico City", "dc": "Washington D.C."
+}
+
+MULTI_WORD_CITIES = [
+    "new york", "san francisco", "mexico city", "los angeles", "buenos aires",
+    "rio de janeiro", "puerto rico", "costa rica", "hong kong", "san diego",
+    "las vegas", "san cristobal", "san miguel", "puerto vallarta"
+]
+
+GLOBAL_LOCATIONS = {
+    "chiapas", "oaxaca", "mexico", "cancun", "guadalajara", "monterrey", "puebla",
+    "yucatan", "merida", "tijuana", "queretaro", "veracruz", "toluca", "acapulco",
+    "chicago", "miami", "seattle", "austin", "boston", "denver", "portland",
+    "toronto", "vancouver", "montreal", "bogota", "medellin", "lima", "santiago",
+    "havana", "san juan", "patagonia", "paris", "london", "berlin", "madrid",
+    "barcelona", "rome", "milan", "florence", "venice", "amsterdam", "vienna",
+    "prague", "budapest", "zurich", "geneva", "dublin", "edinburgh", "copenhagen",
+    "stockholm", "oslo", "helsinki", "reykjavik", "athens", "lisbon", "porto",
+    "munich", "frankfurt", "brussels", "tokyo", "kyoto", "osaka", "seoul",
+    "beijing", "shanghai", "taipei", "singapore", "bangkok", "bali", "mumbai",
+    "delhi", "dubai", "doha", "hanoi", "sydney", "melbourne", "auckland", "cairo",
+    "marrakech", "japan", "italy", "france", "spain", "germany", "greece", "norway",
+    "sweden", "iceland", "switzerland", "ireland", "scotland", "brazil", "argentina",
+    "chile", "colombia", "peru", "korea", "china", "india", "australia", "canada"
+}
+
+def detect_location(text: str) -> Optional[str]:
+    """Fast check to extract a location name if referenced, or None if purely an emotion."""
+    clean = text.replace("Emotion: ", "").strip()
+    if not clean:
+        return None
+    lower = clean.lower()
+
+    # 1. Abbreviations
+    for abbr, full in LOCATION_ABBREVS.items():
+        if re.search(r"\b" + re.escape(abbr) + r"\b", lower):
+            return full
+
+    # 2. Multi-word cities
+    for mwc in MULTI_WORD_CITIES:
+        if re.search(r"\b" + re.escape(mwc) + r"\b", lower):
+            return mwc.title()
+
+    # 3. Known single-word global locations
+    for loc in GLOBAL_LOCATIONS:
+        if re.search(r"\b" + re.escape(loc) + r"\b", lower):
+            return loc.title()
+
+    # 4. Preposition extraction: "in Banff", "miss Florence", "sunset over Aspen"
+    m = re.search(r"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z]+)", clean, re.IGNORECASE)
+    if m:
+        target = m.group(1).lower()
+        if target not in NON_LOCATIONS and len(target) > 2:
+            return m.group(1).title()
+
+    # 5. Standalone single-word query if not in NON_LOCATIONS
+    words = re.findall(r"[A-Za-z]+", clean)
+    if len(words) == 1:
+        single = words[0].lower()
+        if single not in NON_LOCATIONS and len(single) > 2:
+            return words[0].title()
+
+    return None
+
+async def fetch_tavily_grounding(location: str) -> Optional[str]:
+    """Retrieves real-world atmospheric grounding from Tavily AI search for a specific location."""
     if not TAVILY_API_KEY or TAVILY_API_KEY.startswith("YOUR_"):
         return None
     try:
-        query = f"current weather conditions and sensory atmosphere for {prompt[:80]}"
+        query = f"current weather in {location} today conditions temperature sky"
         payload = {
             "api_key": TAVILY_API_KEY,
             "query": query,
             "search_depth": "basic",
             "include_answer": True,
-            "max_results": 2
+            "max_results": 5
         }
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.post("https://api.tavily.com/search", json=payload)
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("answer"):
-                    return str(data["answer"]).strip()
+                answer = data.get("answer")
+                if answer and "do not provide" not in str(answer).lower() and "could not find" not in str(answer).lower():
+                    return str(answer).strip()
                 results = data.get("results", [])
-                if results and results[0].get("content"):
-                    return str(results[0]["content"]).strip()[:240]
+                for r in results:
+                    c = r.get("content", "")
+                    if "°" in c:
+                        return str(c).strip()[:240]
     except Exception as exc:
         print(f"Tavily search notice: {exc}")
     return None
@@ -392,11 +475,16 @@ async def generate_scene(
     if not NEBIUS_API_KEY or NEBIUS_API_KEY.startswith("YOUR_"):
         return FALLBACK_CALM
 
-    # 1. Fetch real-world grounding via Tavily AI Search (if key provided)
-    grounding = await fetch_tavily_grounding(req.emotion)
+    # 1. Detect location and fetch real-world grounding via Tavily AI Search (only if location referenced)
+    detected_location = detect_location(req.emotion)
+    grounding = None
+    if detected_location:
+        grounding = await fetch_tavily_grounding(detected_location)
 
     user_prompt = f"Emotion: {req.emotion.strip()}"
-    if grounding:
+    if grounding and detected_location:
+        user_prompt += f"\nReal-world atmospheric grounding for {detected_location} (via Tavily search): {grounding}\nBlend this real-world sensory context with the emotion."
+    elif grounding:
         user_prompt += f"\nReal-world atmospheric grounding (via Tavily search): {grounding}\nBlend this real-world sensory context with the emotion."
     if req.history:
         recent = ", ".join(req.history[-3:])
@@ -443,7 +531,8 @@ async def generate_scene(
         return SceneResponse(
             weather=WeatherState(**clean_weather),
             palette=ColorPalette(**clean_palette) if clean_palette else None,
-            grounding=grounding
+            grounding=grounding,
+            groundingLocation=detected_location
         )
 
     except Exception as exc:

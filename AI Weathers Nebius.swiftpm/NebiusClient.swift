@@ -60,26 +60,30 @@ struct WeatherPayload: Decodable, Sendable {
     var weather: WeatherState
     var palette: ColorPalette?
     var grounding: String?
+    var groundingLocation: String?
 
-    private enum CodingKeys: String, CodingKey { case weather, palette, grounding }
+    private enum CodingKeys: String, CodingKey { case weather, palette, grounding, groundingLocation }
 
     init(from decoder: Decoder) throws {
         if let c = try? decoder.container(keyedBy: CodingKeys.self), c.contains(.weather) {
             weather = try c.decode(WeatherState.self, forKey: .weather)
             palette = try? c.decodeIfPresent(ColorPalette.self, forKey: .palette)
             grounding = try? c.decodeIfPresent(String.self, forKey: .grounding)
+            groundingLocation = try? c.decodeIfPresent(String.self, forKey: .groundingLocation)
         } else {
             // Direct root WeatherState
             weather = try WeatherState(from: decoder)
             palette = nil
             grounding = nil
+            groundingLocation = nil
         }
     }
 
-    init(weather: WeatherState, palette: ColorPalette?, grounding: String? = nil) {
+    init(weather: WeatherState, palette: ColorPalette?, grounding: String? = nil, groundingLocation: String? = nil) {
         self.weather = weather
         self.palette = palette
         self.grounding = grounding
+        self.groundingLocation = groundingLocation
     }
 }
 
@@ -108,12 +112,18 @@ actor NebiusClient {
 
         guard NebiusConfig.isConfigured, let base = NebiusConfig.baseURL else { throw NebiusError.notConfigured }
 
-        // Enforce natural language emotion grounding via Tavily AI web retrieval
+        // Enforce natural language emotion grounding via Tavily AI web retrieval when a location is referenced
         var promptUser = user
         var liveGrounding: String? = nil
-        if let grounding = await fetchTavilyGrounding(for: user) {
-            promptUser += "\nReal-world atmospheric grounding (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
-            liveGrounding = grounding
+        var detectedLocation: String? = nil
+
+        let cleanEmotion = user.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let loc = Self.detectLocation(in: cleanEmotion) {
+            detectedLocation = loc
+            if let grounding = await fetchTavilyGrounding(forLocation: loc) {
+                promptUser += "\nReal-world atmospheric grounding for \(loc) (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
+                liveGrounding = grounding
+            }
         }
 
         var attempt = 0
@@ -123,6 +133,9 @@ actor NebiusClient {
                 var payload = try Self.decodePayload(from: text)
                 if payload.grounding == nil {
                     payload.grounding = liveGrounding
+                }
+                if payload.groundingLocation == nil {
+                    payload.groundingLocation = detectedLocation
                 }
                 return payload
             } catch NebiusError.http(let status, let body) {
@@ -140,12 +153,8 @@ actor NebiusClient {
         }
     }
 
-    /// Asynchronously fetches real-world atmospheric grounding from Tavily AI Search.
-    /// Only triggers when a location or place is mentioned; otherwise returns nil immediately.
-    private func fetchTavilyGrounding(for emotion: String) async -> String? {
-        let cleanEmotion = emotion.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard Self.containsLocationReference(cleanEmotion) else { return nil }
-
+    /// Asynchronously fetches real-world atmospheric grounding from Tavily AI Search for a detected location.
+    private func fetchTavilyGrounding(forLocation location: String) async -> String? {
         let key = Secrets.tavilyAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.hasPrefix("YOUR_") else { return nil }
         guard let url = URL(string: "https://api.tavily.com/search") else { return nil }
@@ -155,7 +164,7 @@ actor NebiusClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 3.5
 
-        let query = "current weather in \(cleanEmotion) today conditions temperature sky"
+        let query = "current weather in \(location) today conditions temperature sky"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
@@ -197,61 +206,111 @@ actor NebiusClient {
         return nil
     }
 
-    /// Fast, zero-network check to verify if the user input contains a place or location reference.
-    /// Combines universal preposition extraction (catches any city/town worldwide) with global destination recognition.
-    static func containsLocationReference(_ text: String) -> Bool {
-        let lower = text.lowercased()
+    /// Fast, zero-network check to detect if the user input contains a location reference.
+    /// If found, returns the clean location name (e.g. "Chiapas", "New York", "Paris").
+    /// If it is purely an emotion or psychological state, returns nil (saving network/search quota).
+    static func detectLocation(in text: String) -> String? {
+        let clean = text.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return nil }
+        let lower = clean.lowercased()
 
-        // 1. Universal preposition + place detection: "in Zurich", "at Oaxaca", "from Reykjavik", "miss Banff", "skies of Patagonia"
-        let prepositionPattern = #"\b(in|at|from|to|near|around|visiting|miss|missing|of|over)\s+([a-zA-Z]+)"#
-        if let regex = try? NSRegularExpression(pattern: prepositionPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)),
-           let targetRange = Range(match.range(at: 2), in: lower) {
-            let target = String(lower[targetRange])
-            // Filter out common psychological states or grammatical words that follow prepositions
-            let nonLocations: Set<String> = [
-                "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
-                "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
-                "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe"
-            ]
-            if !nonLocations.contains(target) {
-                return true
+        // 1. Common abbreviations
+        let abbrevs: [String: String] = [
+            "ny": "New York", "nyc": "New York", "la": "Los Angeles", "sf": "San Francisco",
+            "cdmx": "Mexico City", "dc": "Washington D.C."
+        ]
+        for (abbr, full) in abbrevs {
+            let p = #"\b"# + NSRegularExpression.escapedPattern(for: abbr) + #"\b"#
+            if let regex = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
+               regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
+                return full
             }
         }
 
-        // 2. Global cities, countries, and destinations (catches standalone names without prepositions: "Zurich chill", "Oaxaca sunset")
+        // 2. Known multi-word cities
+        let multiWordCities = [
+            "new york", "san francisco", "mexico city", "los angeles", "buenos aires",
+            "rio de janeiro", "puerto rico", "costa rica", "hong kong", "san diego",
+            "las vegas", "san cristobal", "san miguel", "puerto vallarta"
+        ]
+        for mwc in multiWordCities {
+            let p = #"\b"# + NSRegularExpression.escapedPattern(for: mwc) + #"\b"#
+            if let regex = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
+               regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
+                return mwc.capitalized
+            }
+        }
+
+        // 3. Known single-word global locations (cities, Mexican states/destinations, countries)
         let globalLocations: Set<String> = [
-            // North America
-            "ny", "nyc", "new york", "la", "los angeles", "sf", "san francisco", "chicago",
-            "miami", "seattle", "boston", "austin", "denver", "portland", "dallas", "houston",
-            "atlanta", "toronto", "vancouver", "montreal", "mexico", "mexico city", "oaxaca",
-            "cancun", "guadalajara", "monterrey", "havana", "san juan",
+            // Mexico & Americas
+            "chiapas", "oaxaca", "mexico", "cancun", "guadalajara", "monterrey", "puebla",
+            "yucatan", "merida", "tijuana", "queretaro", "veracruz", "toluca", "acapulco",
+            "chicago", "miami", "seattle", "austin", "boston", "denver", "portland",
+            "toronto", "vancouver", "montreal", "bogota", "medellin", "lima", "santiago",
+            "havana", "san juan", "patagonia",
             // Europe
-            "london", "paris", "berlin", "madrid", "barcelona", "rome", "milan", "venice",
-            "amsterdam", "brussels", "vienna", "prague", "budapest", "zurich", "geneva",
+            "paris", "london", "berlin", "madrid", "barcelona", "rome", "milan", "florence",
+            "venice", "amsterdam", "vienna", "prague", "budapest", "zurich", "geneva",
             "dublin", "edinburgh", "copenhagen", "stockholm", "oslo", "helsinki", "reykjavik",
-            "athens", "lisbon", "warsaw", "krakow", "munich", "frankfurt", "patagonia",
-            // Asia & Middle East
-            "tokyo", "kyoto", "osaka", "seoul", "beijing", "shanghai", "hong kong", "taipei",
-            "singapore", "bangkok", "bali", "mumbai", "delhi", "dubai", "doha", "hanoi",
-            // South America & Oceania
-            "buenos aires", "santiago", "lima", "bogota", "medellin", "rio", "rio de janeiro",
-            "sao paulo", "montevideo", "sydney", "melbourne", "auckland",
-            // Countries & Continents
+            "athens", "lisbon", "porto", "munich", "frankfurt", "brussels",
+            // Asia, Oceania, Middle East, Africa
+            "tokyo", "kyoto", "osaka", "seoul", "beijing", "shanghai", "taipei", "singapore",
+            "bangkok", "bali", "mumbai", "delhi", "dubai", "doha", "hanoi", "sydney",
+            "melbourne", "auckland", "cairo", "marrakech",
+            // Countries
             "japan", "italy", "france", "spain", "germany", "greece", "norway", "sweden",
             "iceland", "switzerland", "ireland", "scotland", "brazil", "argentina", "chile",
-            "colombia", "peru", "korea", "china", "india", "australia", "new zealand", "canada"
+            "colombia", "peru", "korea", "china", "india", "australia", "canada"
         ]
-
         for loc in globalLocations {
-            let locPattern = #"\b"# + NSRegularExpression.escapedPattern(for: loc) + #"\b"#
-            if let regex = try? NSRegularExpression(pattern: locPattern, options: .caseInsensitive),
+            let p = #"\b"# + NSRegularExpression.escapedPattern(for: loc) + #"\b"#
+            if let regex = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
                regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
-                return true
+                return loc.capitalized
             }
         }
 
-        return false
+        // Filter out non-location emotional / abstract words
+        let nonLocations: Set<String> = [
+            "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
+            "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
+            "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe",
+            "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
+            "anxiety", "exhausted", "exhaustion", "cozy", "nostalgic", "nostalgia",
+            "dreamy", "serene", "lonely", "loneliness", "hopeful", "overwhelmed", "calm",
+            "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
+            "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
+            "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
+            "today", "yesterday", "tomorrow", "day", "night", "morning", "evening", "moment"
+        ]
+
+        // 4. Preposition extraction: "in Banff", "miss Florence", "sunset over Aspen", "rain in Kyoto"
+        let prepPattern = #"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z]+)"#
+        if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: clean, options: [], range: NSRange(location: 0, length: clean.utf16.count)),
+           let targetRange = Range(match.range(at: 1), in: clean) {
+            let target = String(clean[targetRange]).lowercased()
+            if !nonLocations.contains(target) && target.count > 2 {
+                return String(clean[targetRange]).capitalized
+            }
+        }
+
+        // 5. Standalone single-word query if not in nonLocations: e.g. "Banff", "Aspen", "Palenque"
+        let words = clean.components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        if words.count == 1 {
+            let single = words[0].lowercased()
+            if !nonLocations.contains(single) && single.count > 2 {
+                return words[0].capitalized
+            }
+        }
+
+        return nil
+    }
+
+    /// Fast, zero-network check to verify if the user input contains a place or location reference.
+    static func containsLocationReference(_ text: String) -> Bool {
+        return detectLocation(in: text) != nil
     }
 
     private func sendToProxy(proxyURL: URL, user: String) async throws -> WeatherPayload {

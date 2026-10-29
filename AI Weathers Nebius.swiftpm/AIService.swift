@@ -16,6 +16,7 @@ class AIService {
     var currentWeatherState: WeatherState?
     var currentPalette: ColorPalette?
     var currentGrounding: String?
+    var currentGroundingLocation: String?
     var isLoading: Bool = false
 
     private init() {}
@@ -66,6 +67,7 @@ class AIService {
             currentWeatherState = Self.notConfiguredFallback
             currentPalette = nil
             currentGrounding = nil
+            currentGroundingLocation = nil
             return
         }
 
@@ -86,6 +88,7 @@ class AIService {
             currentWeatherState = sanitizedWeather
             currentPalette = Self.validated(payload.palette) ?? Self.proceduralPalette(for: sanitizedWeather)
             currentGrounding = payload.grounding
+            currentGroundingLocation = payload.groundingLocation
         } catch {
             // If the task was cancelled (user tapped back), discard silently.
             if Task.isCancelled || error is CancellationError { return }
@@ -94,6 +97,7 @@ class AIService {
             currentWeatherState = Self.errorFallback
             currentPalette = nil
             currentGrounding = nil
+            currentGroundingLocation = nil
         }
     }
 

@@ -164,34 +164,54 @@ struct ContentView: View {
     private var formattedGroundingHint: String? {
         guard let raw = aiService.currentGrounding?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty else { return nil }
-        return Self.formatGrounding(raw, userQuery: emotionText.isEmpty ? pinnedTitle : emotionText)
+        return Self.formatGrounding(
+            raw,
+            location: aiService.currentGroundingLocation,
+            userQuery: emotionText.isEmpty ? pinnedTitle : emotionText
+        )
     }
 
-    /// Extracts a subtle, elegant atmospheric hint (e.g. "paris is 14°c, clear skies").
-    static func formatGrounding(_ raw: String, userQuery: String? = nil) -> String? {
+    /// Extracts a subtle, elegant atmospheric hint (e.g. "chiapas is 15°c, passing clouds" or "paris is 14°c, clear skies").
+    static func formatGrounding(_ raw: String, location: String? = nil, userQuery: String? = nil) -> String? {
         guard !raw.isEmpty else { return nil }
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = text.lowercased()
 
-        // Reject failure responses from Tavily
-        if lower.contains("do not provide") || lower.contains("could not find") {
+        // 1. Reject failure responses from Tavily
+        if lower.contains("do not provide") || lower.contains("could not find") || lower.contains("no live weather") {
             return nil
         }
 
-        // 1. Extract temperature (e.g., "14°C", "14 °C", "14 degrees")
+        // 2. Extract temperature and properly convert/standardize unit
         var tempStr: String? = nil
-        let tempPattern = #"(\d+)\s*(?:°\s*[CF]|degrees(?:\s*Celsius)?)"#
+        let tempPattern = #"(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
         if let regex = try? NSRegularExpression(pattern: tempPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)),
-           let numRange = Range(match.range(at: 1), in: text) {
-            tempStr = "\(text[numRange])°c"
+           let numRange = Range(match.range(at: 1), in: text),
+           let val = Int(text[numRange]) {
+
+            var unit: String = ""
+            if match.numberOfRanges > 2, match.range(at: 2).location != NSNotFound, let uRange = Range(match.range(at: 2), in: text) {
+                unit = String(text[uRange]).lowercased()
+            } else if match.numberOfRanges > 3, match.range(at: 3).location != NSNotFound, let uRange = Range(match.range(at: 3), in: text) {
+                unit = String(text[uRange]).lowercased()
+            }
+
+            if unit.hasPrefix("f") || (unit.isEmpty && val > 45) {
+                // Convert Fahrenheit to Celsius
+                let celsius = Int(round((Double(val) - 32.0) * 5.0 / 9.0))
+                tempStr = "\(celsius)°c"
+            } else {
+                tempStr = "\(val)°c"
+            }
         }
 
-        // 2. Extract prominent weather condition keyword
+        // 3. Extract prominent weather condition keyword
         let weatherWords = [
-            "partly cloudy", "mostly cloudy", "clear skies", "light rain", "heavy rain",
-            "sunny", "clear", "cloudy", "overcast", "drizzle", "rain", "snow", "fog",
-            "mist", "showers", "thunderstorm", "breeze", "windy"
+            "passing clouds", "scattered clouds", "partly cloudy", "mostly cloudy",
+            "overcast", "clear skies", "clear sky", "light rain", "heavy rain",
+            "thunderstorm", "showers", "drizzle", "sunny", "clear", "cloudy",
+            "rain", "snow", "fog", "mist", "haze", "breeze", "windy"
         ]
         var matchedCond: String? = nil
         for w in weatherWords {
@@ -201,43 +221,22 @@ struct ContentView: View {
             }
         }
 
-        // 3. Extract city / location name
-        var city: String? = nil
-        let knownCities = [
-            "paris", "new york", "ny", "nyc", "kyoto", "tokyo", "london", "berlin",
-            "rome", "madrid", "chicago", "la", "sf", "seattle", "miami", "oaxaca",
-            "zurich", "reykjavik", "amsterdam", "barcelona", "venice", "vienna"
-        ]
-        let queryLower = (userQuery ?? "").lowercased()
-        for c in knownCities {
-            if queryLower.contains(c) || lower.contains(c) {
-                city = (c == "ny" || c == "nyc") ? "new york" : c
-                break
-            }
+        // 4. Resolve location name: NEVER match from Tavily text snippet!
+        let resolvedLocation: String
+        if let explicitLoc = location, !explicitLoc.isEmpty {
+            resolvedLocation = explicitLoc.lowercased()
+        } else if let queryLoc = userQuery.flatMap({ NebiusClient.detectLocation(in: $0) }) {
+            resolvedLocation = queryLoc.lowercased()
+        } else {
+            resolvedLocation = "live atmosphere"
         }
-        if city == nil {
-            let prepPattern = #"\b(in|at|from|to|miss)\s+([A-Za-z]+)"#
-            if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive),
-               let match = regex.firstMatch(in: queryLower, options: [], range: NSRange(location: 0, length: queryLower.utf16.count)),
-               let cityRange = Range(match.range(at: 2), in: queryLower) {
-                city = String(queryLower[cityRange]).lowercased()
-            }
-        }
-
-        let locationName = city ?? "live atmosphere"
 
         if let temp = tempStr, let cond = matchedCond {
-            return "\(locationName) is \(temp), \(cond)"
+            return "\(resolvedLocation) is \(temp), \(cond)"
         } else if let temp = tempStr {
-            return "\(locationName) is \(temp)"
+            return "\(resolvedLocation) is \(temp)"
         } else if let cond = matchedCond {
-            return "\(locationName) is \(cond)"
-        }
-
-        // Fallback: first sentence if short and contains temperature
-        let firstClause = text.components(separatedBy: CharacterSet(charactersIn: ".;\n")).first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if (firstClause.contains("°C") || firstClause.contains("°F")) && firstClause.count <= 65 {
-            return firstClause.lowercased()
+            return "\(resolvedLocation) is \(cond)"
         }
 
         return nil
@@ -865,6 +864,7 @@ struct ContentView: View {
         aiService.currentWeatherState = nil
         aiService.currentPalette = nil
         aiService.currentGrounding = nil
+        aiService.currentGroundingLocation = nil
         // Revert to original Theme colors on the homescreen.
         displayedPalette = nil
         isEditingTitle = false
