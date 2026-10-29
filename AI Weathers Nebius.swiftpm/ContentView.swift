@@ -288,6 +288,13 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.55), value: inputVisible)
 
                 Spacer()
+
+                // ── Lower footer: Powered by Nebius badge (main screen) ───────
+                if inputVisible && aiService.currentWeatherState == nil && !aiService.isLoading {
+                    nebiusFooterBadge()
+                        .padding(.bottom, 22)
+                        .transition(.opacity)
+                }
             }
 
             // ── Layer 4: Back button (result only) ────────────────────────
@@ -530,25 +537,26 @@ struct ContentView: View {
                 .opacity(0.65)
                 .padding(.top, 22)
                 .accessibilityHidden(true)
-
-            // Powered by Nebius tag on the main page
-            HStack(spacing: 5) {
-                Text("powered by")
-                    .font(.system(size: 11, weight: .light, design: .serif))
-                Text("NEBIUS")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .tracking(1.4)
-                Text("•")
-                    .font(.system(size: 8))
-                Text("NVIDIA Nemotron")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-            }
-            .foregroundColor(paletteText.opacity(0.35))
-            .padding(.top, 28)
-            .accessibilityLabel("Powered by Nebius and NVIDIA Nemotron")
         }
         // Keep the layout anchored — prevent keyboard from pushing the view up.
         .ignoresSafeArea(.keyboard)
+    }
+
+    @ViewBuilder
+    private func nebiusFooterBadge() -> some View {
+        HStack(spacing: 5) {
+            Text("powered by")
+                .font(.system(size: 11, weight: .light, design: .serif))
+            Text("NEBIUS")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .tracking(1.4)
+            Text("•")
+                .font(.system(size: 8))
+            Text("NVIDIA Nemotron")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+        }
+        .foregroundColor(paletteText.opacity(0.35))
+        .accessibilityLabel("Powered by Nebius and NVIDIA Nemotron")
     }
 
     @ViewBuilder
