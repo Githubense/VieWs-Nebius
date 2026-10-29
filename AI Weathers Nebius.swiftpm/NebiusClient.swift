@@ -155,13 +155,13 @@ actor NebiusClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 3.5
 
-        let query = "current live weather conditions, temperature, and sky atmosphere in \(cleanEmotion.prefix(80))"
+        let query = "current weather in \(cleanEmotion) today conditions temperature sky"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
             "search_depth": "basic",
             "include_answer": true,
-            "max_results": 2
+            "max_results": 5
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
@@ -170,13 +170,26 @@ actor NebiusClient {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+            struct TavilyResult: Decodable {
+                let content: String?
+            }
             struct TavilyResp: Decodable {
                 let answer: String?
+                let results: [TavilyResult]?
             }
-            if let parsed = try? JSONDecoder().decode(TavilyResp.self, from: data),
-               let answer = parsed.answer, !answer.isEmpty {
-                print("[VieWs][Tavily] Grounding fetched: \(answer.prefix(90))...")
-                return answer
+            if let parsed = try? JSONDecoder().decode(TavilyResp.self, from: data) {
+                if let answer = parsed.answer, !answer.isEmpty,
+                   !answer.localizedCaseInsensitiveContains("do not provide"),
+                   !answer.localizedCaseInsensitiveContains("could not find") {
+                    print("[VieWs][Tavily] Grounding fetched: \(answer.prefix(90))...")
+                    return answer
+                }
+                // Fallback to top result snippet if the AI answer synthesis missed
+                if let snippet = parsed.results?.first(where: { ($0.content?.contains("°") ?? false) })?.content,
+                   !snippet.isEmpty {
+                    print("[VieWs][Tavily] Grounding snippet: \(snippet.prefix(90))...")
+                    return snippet
+                }
             }
         } catch {
             return nil

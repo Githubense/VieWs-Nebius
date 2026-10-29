@@ -164,34 +164,77 @@ struct ContentView: View {
     private var formattedGroundingHint: String? {
         guard let raw = aiService.currentGrounding?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty else { return nil }
-        return Self.formatGrounding(raw)
+        return Self.formatGrounding(raw, userQuery: emotionText.isEmpty ? pinnedTitle : emotionText)
     }
 
-    /// Extracts a subtle, elegant atmospheric hint (e.g. "new york is 17°c, sunny").
-    static func formatGrounding(_ raw: String) -> String? {
+    /// Extracts a subtle, elegant atmospheric hint (e.g. "paris is 14°c, clear skies").
+    static func formatGrounding(_ raw: String, userQuery: String? = nil) -> String? {
         guard !raw.isEmpty else { return nil }
-        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
 
-        // Strip leading date/time stamps (e.g., "As of 06:30 PM on 19 October 2026, ")
-        if let regex = try? NSRegularExpression(pattern: #"^As of \d{1,2}:\d{2}\s*(?:AM|PM)?(?:\s*on\s*[^,]+)?,?\s*"#, options: .caseInsensitive) {
-            text = regex.stringByReplacingMatches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count), withTemplate: "")
+        // Reject failure responses from Tavily
+        if lower.contains("do not provide") || lower.contains("could not find") {
+            return nil
         }
 
-        // Pattern 1: "<City>'s weather is <condition> with a temperature of <temp>"
-        let p1 = #"([A-Za-z\s]+?)(?:'s)?\s*weather is\s*([^,\.]+?)\s*with a temperature of\s*(\d+°[CF])"#
-        if let regex = try? NSRegularExpression(pattern: p1, options: .caseInsensitive),
+        // 1. Extract temperature (e.g., "14°C", "14 °C", "14 degrees")
+        var tempStr: String? = nil
+        let tempPattern = #"(\d+)\s*(?:°\s*[CF]|degrees(?:\s*Celsius)?)"#
+        if let regex = try? NSRegularExpression(pattern: tempPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)),
-           let cityRange = Range(match.range(at: 1), in: text),
-           let condRange = Range(match.range(at: 2), in: text),
-           let tempRange = Range(match.range(at: 3), in: text) {
-            var city = String(text[cityRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            city = city.replacingOccurrences(of: "City", with: "", options: .caseInsensitive).trimmingCharacters(in: .whitespacesAndNewlines)
-            let cond = String(text[condRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let temp = String(text[tempRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(city.lowercased()) is \(temp.lowercased()), \(cond.lowercased())"
+           let numRange = Range(match.range(at: 1), in: text) {
+            tempStr = "\(text[numRange])°c"
         }
 
-        // Pattern 2: Look for temperature and condition in the first clause
+        // 2. Extract prominent weather condition keyword
+        let weatherWords = [
+            "partly cloudy", "mostly cloudy", "clear skies", "light rain", "heavy rain",
+            "sunny", "clear", "cloudy", "overcast", "drizzle", "rain", "snow", "fog",
+            "mist", "showers", "thunderstorm", "breeze", "windy"
+        ]
+        var matchedCond: String? = nil
+        for w in weatherWords {
+            if lower.contains(w) {
+                matchedCond = w
+                break
+            }
+        }
+
+        // 3. Extract city / location name
+        var city: String? = nil
+        let knownCities = [
+            "paris", "new york", "ny", "nyc", "kyoto", "tokyo", "london", "berlin",
+            "rome", "madrid", "chicago", "la", "sf", "seattle", "miami", "oaxaca",
+            "zurich", "reykjavik", "amsterdam", "barcelona", "venice", "vienna"
+        ]
+        let queryLower = (userQuery ?? "").lowercased()
+        for c in knownCities {
+            if queryLower.contains(c) || lower.contains(c) {
+                city = (c == "ny" || c == "nyc") ? "new york" : c
+                break
+            }
+        }
+        if city == nil {
+            let prepPattern = #"\b(in|at|from|to|miss)\s+([A-Za-z]+)"#
+            if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive),
+               let match = regex.firstMatch(in: queryLower, options: [], range: NSRange(location: 0, length: queryLower.utf16.count)),
+               let cityRange = Range(match.range(at: 2), in: queryLower) {
+                city = String(queryLower[cityRange]).lowercased()
+            }
+        }
+
+        let locationName = city ?? "live atmosphere"
+
+        if let temp = tempStr, let cond = matchedCond {
+            return "\(locationName) is \(temp), \(cond)"
+        } else if let temp = tempStr {
+            return "\(locationName) is \(temp)"
+        } else if let cond = matchedCond {
+            return "\(locationName) is \(cond)"
+        }
+
+        // Fallback: first sentence if short and contains temperature
         let firstClause = text.components(separatedBy: CharacterSet(charactersIn: ".;\n")).first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if (firstClause.contains("°C") || firstClause.contains("°F")) && firstClause.count <= 65 {
             return firstClause.lowercased()
