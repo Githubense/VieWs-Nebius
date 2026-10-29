@@ -141,8 +141,11 @@ actor NebiusClient {
     }
 
     /// Asynchronously fetches real-world atmospheric grounding from Tavily AI Search.
-    /// Fails gracefully with nil on timeout or missing key so generation is never blocked.
+    /// Only triggers when a location or place is mentioned; otherwise returns nil immediately.
     private func fetchTavilyGrounding(for emotion: String) async -> String? {
+        let cleanEmotion = emotion.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.containsLocationReference(cleanEmotion) else { return nil }
+
         let key = Secrets.tavilyAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.hasPrefix("YOUR_") else { return nil }
         guard let url = URL(string: "https://api.tavily.com/search") else { return nil }
@@ -152,8 +155,7 @@ actor NebiusClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 3.5
 
-        let cleanEmotion = emotion.replacingOccurrences(of: "Emotion: ", with: "")
-        let query = "sensory weather atmosphere and environmental conditions for feeling \(cleanEmotion.prefix(80))"
+        let query = "current live weather conditions, temperature, and sky atmosphere in \(cleanEmotion.prefix(80))"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
@@ -180,6 +182,31 @@ actor NebiusClient {
             return nil
         }
         return nil
+    }
+
+    /// Fast, zero-network check to verify if the user input contains a place or location reference.
+    static func containsLocationReference(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        // 1. Common prepositions indicating location: "in <place>", "at <place>", "from <place>", "miss <place>"
+        let prepositionPattern = #"\b(in|at|from|to|near|around|visiting|miss|missing)\s+[a-zA-Z]+"#
+        if let regex = try? NSRegularExpression(pattern: prepositionPattern, options: []),
+           regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
+            return true
+        }
+        // 2. Common cities and abbreviations
+        let places = [
+            "ny", "nyc", "new york", "kyoto", "tokyo", "london", "paris",
+            "berlin", "madrid", "rome", "chicago", "la", "sf", "miami",
+            "seattle", "boston", "vancouver", "toronto", "oslo", "stockholm"
+        ]
+        for p in places {
+            let pPattern = #"\b"# + p + #"\b"#
+            if let regex = try? NSRegularExpression(pattern: pPattern, options: []),
+               regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     private func sendToProxy(proxyURL: URL, user: String) async throws -> WeatherPayload {
