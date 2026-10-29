@@ -303,21 +303,30 @@ actor NebiusClient {
         }
         if let open = text.range(of: "<think>") { text.removeSubrange(open.lowerBound..<text.endIndex) }
 
-        // 2. Check for fenced code block ```json ... ``` or ``` ... ```
-        if let startFence = text.range(of: "```json"), let endFence = text.range(of: "```", range: startFence.upperBound..<text.endIndex) {
-            let fenced = String(text[startFence.upperBound..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if (try? JSONSerialization.jsonObject(with: Data(fenced.utf8))) != nil {
-                return fenced
+        var candidates: [String] = []
+
+        // 2. Collect all fenced code blocks ```json ... ``` or ``` ... ```
+        var fenceIndex = text.startIndex
+        while fenceIndex < text.endIndex, let startFence = text[fenceIndex...].range(of: "```") {
+            let afterStart = startFence.upperBound
+            var codeStart = afterStart
+            if text[afterStart...].hasPrefix("json") {
+                codeStart = text.index(afterStart, offsetBy: 4)
             }
-        }
-        if let startFence = text.range(of: "```"), let endFence = text.range(of: "```", range: startFence.upperBound..<text.endIndex) {
-            let fenced = String(text[startFence.upperBound..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if (try? JSONSerialization.jsonObject(with: Data(fenced.utf8))) != nil {
-                return fenced
+            if let endFence = text[codeStart...].range(of: "```") {
+                let fenced = String(text[codeStart..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if (fenced.contains("\"sceneTitle\"") || fenced.contains("\"weather\"")),
+                   let data = fenced.data(using: .utf8),
+                   (try? JSONSerialization.jsonObject(with: data)) != nil {
+                    candidates.append(fenced)
+                }
+                fenceIndex = endFence.upperBound
+            } else {
+                break
             }
         }
 
-        // 3. Scan for balanced JSON object containing weather keys
+        // 3. Scan for all balanced JSON objects containing weather keys
         var searchIndex = text.startIndex
         while searchIndex < text.endIndex, let openBrace = text[searchIndex...].firstIndex(of: "{") {
             var depth = 0
@@ -357,12 +366,26 @@ actor NebiusClient {
                 if (candidate.contains("\"sceneTitle\"") || candidate.contains("\"weather\"") || candidate.contains("\"precipitation\"")),
                    let data = candidate.data(using: .utf8),
                    (try? JSONSerialization.jsonObject(with: data)) != nil {
-                    return candidate
+                    candidates.append(candidate)
                 }
                 searchIndex = text.index(after: openBrace)
             } else {
                 break
             }
+        }
+
+        // Discard any candidates that are just echoed placeholder templates from system prompts
+        let nonPlaceholders = candidates.filter {
+            !$0.contains("two evocative words") &&
+            !$0.contains("one minimalist sentence") &&
+            !$0.contains("describing the physical atmosphere") &&
+            !$0.contains("Title Here") &&
+            !$0.contains("Evocative Title")
+        }
+
+        // Pick the LAST non-placeholder candidate (the final generated output at the end of the thought trace)
+        if let best = nonPlaceholders.last ?? candidates.last {
+            return best
         }
 
         // Fallback: first '{' to last '}'

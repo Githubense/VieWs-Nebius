@@ -25,25 +25,28 @@ class AIService {
     /// Clean, direct system prompt matching the original guided generation schema.
     /// Emphasizes translating natural language human feelings into physical atmospheric parameters.
     private static let systemPrompt = """
-    You are an emotional-to-environmental atmosphere translator for an ambient iOS app.
-    The user describes how they feel in natural, human language (emotions, memories, sensations, moods) — NOT weather controls.
-    Your task is to interpret their emotional state and translate it into matching physical weather parameters and sky tones.
+    You are an environmental parameter generator for an ambient weather app.
+    Translate the user's emotion and real-world atmospheric context into physical weather parameters and sky tones.
 
-    CRITICAL: Output ONLY a valid JSON object matching this schema without markdown code fences or commentary:
+    CRITICAL INSTRUCTIONS:
+    1. Output ONLY a valid JSON object matching the schema below. Do NOT output markdown code fences or commentary. Start immediately with '{'.
+    2. Generate creative, unique values tailored to the user's emotion. Do NOT output placeholder text.
+    3. Required JSON format:
     {
-      "sceneTitle": "two evocative words capturing the mood",
-      "atmosphereDescription": "one minimalist sentence, 10-15 words, describing the physical atmosphere without metaphors",
+      "sceneTitle": "2-3 word evocative title (e.g. Manhattan Dusk, Amber Nostalgia, Distant Solitude)",
+      "atmosphereDescription": "One sensory sentence in 10-14 words describing physical weather without metaphors.",
       "precipitation": 0.0,
-      "windSpeed": 0.0,
+      "windSpeed": 0.3,
       "fogDensity": 0.0,
       "snowIntensity": 0.0,
-      "clearness": 0.0,
+      "clearness": 0.7,
       "lightningFrequency": 0.0,
-      "colorTemperature": "warm"
+      "colorTemperature": "golden"
     }
 
     Rules:
-    - All numeric values must be between 0.0 and 0.8.
+    - sceneTitle must be 2-3 words capturing the essence of the emotion.
+    - All numeric values must be between 0.0 and 0.8. Use the full range — do not default everything to 0.
     - colorTemperature must be one of: warm, cool, neutral, melancholy, golden, crimson, dusk, arctic, ember, ash.
     - Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most one to non-zero.
     """

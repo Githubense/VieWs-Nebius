@@ -122,7 +122,12 @@ extension WeatherState {
             s.colorTemperature = "neutral"
         }
         s.sceneTitle = s.sceneTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.sceneTitle.isEmpty { s.sceneTitle = "Quiet Sky" }
+        if s.sceneTitle.isEmpty || s.sceneTitle.contains("two evocative words") || s.sceneTitle.contains("Title Here") {
+            s.sceneTitle = "Quiet Sky"
+        }
+        if s.atmosphereDescription.contains("one minimalist sentence") || s.atmosphereDescription.contains("without metaphors") {
+            s.atmosphereDescription = "A gentle breeze and soft light move through the quiet atmosphere."
+        }
 
         // 1. Clamp all doubles to valid range
         s.precipitation      = max(0, min(1, s.precipitation))
@@ -131,6 +136,13 @@ extension WeatherState {
         s.snowIntensity      = max(0, min(1, s.snowIntensity))
         s.clearness          = max(0, min(1, s.clearness))
         s.lightningFrequency = max(0, min(1, s.lightningFrequency))
+
+        // Ensure a living atmosphere if all values collapsed to zero
+        let totalActivity = s.precipitation + s.windSpeed + s.fogDensity + s.snowIntensity + s.clearness
+        if totalActivity < 0.05 {
+            s.clearness = 0.65
+            s.windSpeed = 0.25
+        }
 
         // 2. Rain and snow are mutually exclusive — keep the dominant one
         if s.precipitation > 0 && s.snowIntensity > 0 {
