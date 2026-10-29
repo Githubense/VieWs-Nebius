@@ -239,7 +239,7 @@ actor NebiusClient {
 
         // 2. Emotional, psychological, and abstract terms that should NEVER trigger weather searches
         let abstractWords: Set<String> = [
-            // Internal feelings & mental states
+            // Internal feelings & mental states (English & Spanish)
             "love", "pain", "peace", "grief", "silence", "fear", "doubt", "darkness",
             "light", "hope", "despair", "chaos", "thought", "thoughts", "pieces", "shambles",
             "awe", "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
@@ -248,42 +248,74 @@ actor NebiusClient {
             "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
             "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
             "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
+            "daydreaming", "sorrow", "search", "head", "heart", "chest", "soul", "memory", "memories", "mood",
+            "amor", "dolor", "paz", "soledad", "tristeza", "miedo", "rabia", "nostalgia", "calma",
+            // Weather nouns (should not trigger city search)
+            "rain", "snow", "thunder", "fog", "clouds", "sun", "wind", "storm", "drizzle", "sunshine",
+            "lluvia", "nieve", "viento", "sol", "tormenta", "niebla",
             // Pronouns & grammatical objects
             "you", "me", "him", "her", "them", "us", "it", "this", "that", "all", "my",
             "your", "his", "their", "our", "a", "an", "the", "bed", "mind", "home", "work",
             "tears", "today", "yesterday", "tomorrow", "day", "night", "morning", "evening",
-            "moment", "time", "life", "world", "here", "there", "school"
+            "moment", "time", "life", "world", "here", "there", "school", "office", "room",
+            "trabajo", "casa", "cama", "vida", "mundo", "aqui", "alli", "ti", "ella", "el"
         ]
 
-        // 3. Universal Spatial Prepositions: "in [Place]", "miss [Place]", "visiting [Place]", "over [Place]", "around [Place]"
-        // Catches any city, town, pueblo, or mountain in the world (e.g. Banff, Monterrey, Tepoztlan, Shibuya, Chiapas)
-        let prepPattern = #"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z\s]+)"#
-        if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: clean, options: [], range: NSRange(location: 0, length: clean.utf16.count)),
-           let targetRange = Range(match.range(at: 1), in: clean) {
-            let candidate = String(clean[targetRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let words = candidate.components(separatedBy: CharacterSet.whitespacesAndNewlines).filter { !$0.isEmpty }
-            if let first = words.first {
+        let weatherAdjectives: Set<String> = [
+            "rainy", "sunny", "cloudy", "foggy", "snowy", "cold", "warm", "chilly", "windy",
+            "stormy", "misty", "autumn", "winter", "summer", "spring", "gloomy", "breezy"
+        ]
+
+        // 3. Universal Spatial Prepositions in English & Spanish (non-greedy, checks multiple prepositions)
+        let prepWords = "in|at|from|to|near|around|visiting|miss|missing|of|over|through|for|en|hacia|desde|extraño|extrano|extrañando|visitando|por"
+        let prepPattern = #"\b(?:"# + prepWords + #")\s+((?:(?!\b(?:"# + prepWords + #")\b)[A-Za-z])+(?:\s+(?:(?!\b(?:"# + prepWords + #")\b)[A-Za-z])+){0,2})"#
+        if let regex = try? NSRegularExpression(pattern: prepPattern, options: .caseInsensitive) {
+            let matches = regex.matches(in: clean, options: [], range: NSRange(location: 0, length: clean.utf16.count))
+            for match in matches {
+                guard match.numberOfRanges > 1, let targetRange = Range(match.range(at: 1), in: clean) else { continue }
+                let candidate = String(clean[targetRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let words = candidate.components(separatedBy: CharacterSet.whitespacesAndNewlines).filter { !$0.isEmpty }
+                guard let first = words.first else { continue }
                 let firstLower = first.lowercased()
-                if !abstractWords.contains(firstLower) && firstLower.count > 2 {
-                    if words.count >= 2 {
-                        let secondLower = words[1].lowercased()
-                        if !abstractWords.contains(secondLower) {
-                            return "\(first.capitalized) \(words[1].capitalized)"
-                        }
+                if abstractWords.contains(firstLower) || firstLower.count <= 2 { continue }
+
+                // 3-word place (e.g. Rio de Janeiro, Cabo San Lucas)
+                if words.count >= 3 {
+                    let secondLower = words[1].lowercased()
+                    let thirdLower = words[2].lowercased()
+                    let particles: Set<String> = ["de", "del", "da", "san", "la", "los", "las", "el", "st", "saint"]
+                    if particles.contains(secondLower) && !abstractWords.contains(thirdLower) {
+                        let particle = ["san", "st", "saint"].contains(secondLower) ? words[1].capitalized : words[1].lowercased()
+                        return "\(first.capitalized) \(particle) \(words[2].capitalized)"
                     }
-                    return first.capitalized
                 }
+
+                // 2-word place (e.g. New York, San Cristobal, Puerto Escondido)
+                if words.count >= 2 {
+                    let secondLower = words[1].lowercased()
+                    if !abstractWords.contains(secondLower) {
+                        return "\(first.capitalized) \(words[1].capitalized)"
+                    }
+                }
+
+                return first.capitalized
             }
         }
 
-        // 4. Standalone destination query (1 to 2 words):
-        // If the user simply types "Monterrey", "Chiapas", "Banff", "Paris", or "San Cristobal",
-        // and neither word is an abstract emotion, it is a physical destination!
-        let words = clean.components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
-        if words.count >= 1 && words.count <= 2 {
-            if words.allSatisfy({ !abstractWords.contains($0.lowercased()) && $0.count > 2 }) {
-                return words.map { $0.capitalized }.joined(separator: " ")
+        // 4. Weather Adjective + Destination (e.g. "rainy Paris" -> "Paris", "sunny Barcelona" -> "Barcelona")
+        let lettersOnly = clean.components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        if lettersOnly.count == 2 {
+            let w0 = lettersOnly[0].lowercased()
+            let w1 = lettersOnly[1].lowercased()
+            if weatherAdjectives.contains(w0) && !abstractWords.contains(w1) && w1.count > 2 {
+                return lettersOnly[1].capitalized
+            }
+        }
+
+        // 5. Standalone destination query (1 to 2 words):
+        if lettersOnly.count >= 1 && lettersOnly.count <= 2 {
+            if lettersOnly.allSatisfy({ !abstractWords.contains($0.lowercased()) && $0.count > 2 }) {
+                return lettersOnly.map { $0.capitalized }.joined(separator: " ")
             }
         }
 

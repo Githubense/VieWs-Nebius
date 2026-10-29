@@ -344,7 +344,7 @@ def health():
     return {"status": "ok", "time": time.time()}
 
 ABSTRACT_WORDS = {
-    # Internal feelings & mental states
+    # Internal feelings & mental states (English & Spanish)
     "love", "pain", "peace", "grief", "silence", "fear", "doubt", "darkness",
     "light", "hope", "despair", "chaos", "thought", "thoughts", "pieces", "shambles",
     "awe", "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
@@ -353,17 +353,31 @@ ABSTRACT_WORDS = {
     "restless", "sleepy", "joy", "anger", "bored", "meditative", "quiet", "solitude",
     "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
     "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
+    "daydreaming", "sorrow", "search", "head", "heart", "chest", "soul", "memory", "memories", "mood",
+    "amor", "dolor", "paz", "soledad", "tristeza", "miedo", "rabia", "nostalgia", "calma",
+    # Weather nouns (should not trigger city search)
+    "rain", "snow", "thunder", "fog", "clouds", "sun", "wind", "storm", "drizzle", "sunshine",
+    "lluvia", "nieve", "viento", "sol", "tormenta", "niebla",
     # Pronouns & grammatical objects
     "you", "me", "him", "her", "them", "us", "it", "this", "that", "all", "my",
     "your", "his", "their", "our", "a", "an", "the", "bed", "mind", "home", "work",
     "tears", "today", "yesterday", "tomorrow", "day", "night", "morning", "evening",
-    "moment", "time", "life", "world", "here", "there", "school"
+    "moment", "time", "life", "world", "here", "there", "school", "office", "room",
+    "trabajo", "casa", "cama", "vida", "mundo", "aqui", "alli", "ti", "ella", "el"
+}
+
+WEATHER_ADJECTIVES = {
+    "rainy", "sunny", "cloudy", "foggy", "snowy", "cold", "warm", "chilly", "windy",
+    "stormy", "misty", "autumn", "winter", "summer", "spring", "gloomy", "breezy"
 }
 
 LOCATION_ABBREVS = {
     "ny": "New York", "nyc": "New York", "la": "Los Angeles", "sf": "San Francisco",
     "cdmx": "Mexico City", "dc": "Washington D.C."
 }
+
+PREP_WORDS = "in|at|from|to|near|around|visiting|miss|missing|of|over|through|for|en|hacia|desde|extraño|extrano|extrañando|visitando|por"
+PREP_PAT = r"\b(?:" + PREP_WORDS + r")\s+((?:(?!\b(?:" + PREP_WORDS + r")\b)[A-Za-z])+(?:\s+(?:(?!\b(?:" + PREP_WORDS + r")\b)[A-Za-z])+){0,2})"
 
 def detect_location(text: str) -> Optional[str]:
     """Universal grammatical-semantic check to extract a location name if referenced, or None if purely an emotion."""
@@ -377,20 +391,36 @@ def detect_location(text: str) -> Optional[str]:
         if re.search(r"\b" + re.escape(abbr) + r"\b", lower):
             return full
 
-    # 2. Universal Spatial Prepositions: "in [Place]", "miss [Place]", "visiting [Place]", "around [Place]"
-    m = re.search(r"\b(?:in|at|from|to|near|around|visiting|miss|missing|of|over|through)\s+([A-Za-z\s]+)", clean, re.IGNORECASE)
-    if m:
+    # 2. Universal Spatial Prepositions in English & Spanish
+    for m in re.finditer(PREP_PAT, clean, re.IGNORECASE):
         candidate = m.group(1).strip()
         words = candidate.split()
-        if words:
-            first = words[0].lower()
-            if first not in ABSTRACT_WORDS and len(first) > 2:
-                if len(words) >= 2 and words[1].lower() not in ABSTRACT_WORDS:
-                    return f"{words[0].title()} {words[1].title()}"
-                return words[0].title()
+        if not words:
+            continue
+        first = words[0].lower()
+        if first in ABSTRACT_WORDS or len(first) <= 2:
+            continue
 
-    # 3. Standalone query (1 to 2 words): if neither word is an abstract emotion, it is a destination
+        # Check if 3-word place (e.g. Rio de Janeiro, Cabo San Lucas)
+        if len(words) >= 3 and words[1].lower() in {"de", "del", "da", "san", "la", "los", "las", "el", "st", "saint"}:
+            if words[2].lower() not in ABSTRACT_WORDS:
+                particle = words[1].title() if words[1].lower() in {"san", "st", "saint"} else words[1].lower()
+                return f"{words[0].title()} {particle} {words[2].title()}"
+
+        # Check if 2-word place (e.g. New York, San Cristobal, Puerto Escondido)
+        if len(words) >= 2 and words[1].lower() not in ABSTRACT_WORDS:
+            return f"{words[0].title()} {words[1].title()}"
+
+        return words[0].title()
+
+    # 3. Weather Adjective + Destination (e.g. "rainy Paris" -> "Paris", "sunny Barcelona" -> "Barcelona")
     words = re.findall(r"[A-Za-z]+", clean)
+    if len(words) == 2:
+        w0, w1 = words[0].lower(), words[1].lower()
+        if w0 in WEATHER_ADJECTIVES and w1 not in ABSTRACT_WORDS and len(w1) > 2:
+            return words[1].title()
+
+    # 4. Standalone query (1 to 2 words): if neither word is an abstract emotion, it is a destination
     if 1 <= len(words) <= 2:
         if all(w.lower() not in ABSTRACT_WORDS and len(w) > 2 for w in words):
             return " ".join(w.title() for w in words)
