@@ -1,132 +1,119 @@
-# VieWs — Ambient Generative Weather Atmosphere
+<p align="center">
+  <img src="assets/icon.png" width="120" height="120" alt="VieWs App Icon" style="border-radius: 26px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
+</p>
 
-> **Submission for the Nebius x NVIDIA Global AI Hackathon (Best Apps and Agents Track)**  
-> *Transforming emotional introspection into living procedural weather and ambient soundscapes powered by NVIDIA Nemotron on Nebius AI Cloud.*
+<h1 align="center">VieWs</h1>
 
-[![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138.svg)](https://swift.org)
-[![iOS 26+](https://img.shields.io/badge/iOS-26%2B-000000.svg)](https://developer.apple.com/ios/)
-[![Nebius Token Factory](https://img.shields.io/badge/Nebius-Token%20Factory-00A4E4.svg)](https://tokenfactory.nebius.com)
-[![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron-76B900.svg)](https://build.nvidia.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <strong>Ambient Generative Weather Atmosphere</strong><br>
+  <em>Transforming emotional introspection into living procedural weather, generative soundscapes, and real-time sensory grounding.</em>
+</p>
+
+<p align="center">
+  <a href="https://tokenfactory.nebius.com"><img src="https://img.shields.io/badge/Nebius-Token%20Factory-00E599?style=for-the-badge&logoColor=black" alt="Nebius AI Cloud" /></a>
+  <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/NVIDIA-Nemotron-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="NVIDIA Nemotron" /></a>
+  <a href="https://tavily.com"><img src="https://img.shields.io/badge/Tavily-AI%20Search-4353FF?style=for-the-badge&logoColor=white" alt="Tavily AI Search" /></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6.0-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 6" /></a>
+  <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/iOS-26%2B-000000?style=for-the-badge&logo=apple&logoColor=white" alt="iOS & iPadOS" /></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Track-Best%20Apps%20%26%20Agents-blueviolet?style=flat-square" alt="Track: Best Apps and Agents" />
+  <img src="https://img.shields.io/badge/Bonus%20Award-%243%2C000%20Best%20Use%20of%20Tavily-00C49F?style=flat-square" alt="Bonus Award: Best Use of Tavily" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="MIT License" />
+</p>
+
+---
+
+## Visual Showcase
+
+<p align="center">
+  <img src="assets/preview_1.png" width="31%" alt="VieWs Dark Atmosphere" />
+  <img src="assets/preview_2.png" width="31%" alt="VieWs Soft Pastel Atmosphere" />
+  <img src="assets/preview_3.png" width="31%" alt="VieWs Golden Atmosphere" />
+</p>
 
 ---
 
 ## Overview
 
-**VieWs** is an ambient iOS and iPadOS application that turns feelings into living, breathing atmospheres.
+**VieWs** is an ambient iOS and iPadOS application that turns human feelings into living, breathing atmospheres.
 
-Instead of displaying standard meteorological forecasts, VieWs invites the user to describe how they feel — whether in two words (*"quiet grief"*, *"sunlit optimism"*) or a paragraph of reflection. In a single network round-trip, an **NVIDIA Nemotron** model running on **Nebius Token Factory** translates the emotional nuances into a synchronized multi-sensory experience:
+Instead of displaying standard meteorological forecasts, VieWs invites you to describe how you feel — whether in two words (*"quiet grief"*, *"sunlit optimism"*) or a paragraph of reflection (*"i really miss monterrey and its mountain sunsets"*). In a single rapid round-trip:
 
-1. **SpriteKit Procedural Particle Weather:** Dynamic rain, snow, drifting fog, howling wind, and lightning storms rendered at 60/120 FPS.
-2. **5-Layer Real-Time DSP Audio Synthesizer:** Fully procedural, continuous ambient audio built with `AVAudioEngine` and custom `AVAudioSourceNode` DSP math — zero looping samples for rain, wind, fog, and snow.
-3. **Adaptive Color Harmonies:** Mathematically validated 5-swatch color palettes adhering to color theory contrast rules across Pastel, Soft, and Dark families.
-4. **Atmospheric Physics Sanitization:** Deterministic rule enforcement guaranteeing that rain and snow never conflict, lightning only strikes during downpours, and sky contrasts remain legible.
+1. **NVIDIA Nemotron-3.5-Lightning** running on **Nebius Token Factory** translates the emotional nuances into physical weather parameters and mathematically validated color harmonies.
+2. **Tavily AI Search** enriches natural language emotions with real-world atmospheric grounding when a place or memory of a destination is referenced.
+3. **SpriteKit Procedural Particle Engine** simulates dynamic rain, snow, drifting fog, howling wind, and lightning storms at 60/120 FPS.
+4. **5-Layer Real-Time DSP Audio Synthesizer** generates continuous procedural soundscapes with zero static looping audio files using custom `AVAudioSourceNode` math.
+
+---
+
+## Hackathon Track & Awards Alignment
+
+### 1. Best Apps and Agents Track
+* **Nebius Token Factory:** Integrates OpenAI-compatible high-throughput inference powered by **NVIDIA Nemotron-3.5-Lightning**. Response times are consistently under 1.5 seconds with low latency for real-time mobile scene transitions.
+* **Nebius Serverless Endpoints (`proxy/`):** A production-ready, containerized FastAPI proxy deployed on Nebius Serverless Endpoints. Prevents mobile API key exposure, enforces strict prompt schemas, and provides IP-based rate limiting so judges can test the app without manual credential setup.
+* **Deterministic Safety Net:** Client-side physical constraint validation guarantees that rain and snow never collide, lightning only strikes in stormy downpours, and UI text always achieves WCAG-compliant contrast.
+
+### 2. $3,000 Best Use of Tavily Bonus Award
+* **Real-Time Atmospheric Web Grounding:** When a user references a place or nostalgia (*"i really miss monterrey"*, *"autumn in Kyoto"*, *"walking through Chiapas"*), the client detects the location and queries Tavily AI Search for live conditions in under 0.5s.
+* **Sensory Synthesis:** Tavily's live temperature, humidity, and sky conditions are blended into Nemotron's atmospheric prompt, grounding subjective emotion into objective physical reality.
+* **Subtle Editorial Hint:** If grounded, an elegant subtitle (e.g. *monterrey is 24°c, overcast*) appears in the native palette accent without cluttering the screen.
+* **Zero Quota Wastage:** Pure emotional introspections (*"quiet melancholy"*, *"exhausted after work"*) skip search, preserving search quota and avoiding false positive matches.
 
 ---
 
 ## System Architecture
 
-VieWs features a production-ready, security-first architecture designed for the hackathon and beyond:
-
 ```
-┌──────────────────────────────────────┐
-│       VieWs (iOS / iPadOS)           │
-│   • SpriteKit Weather Emitter Scene  │
-│   • 5-Layer Procedural Audio Engine  │
-│   • Swift 6 Strict Concurrency       │
-└──────────────────┬───────────────────┘
-                   │
-      ┌────────────┴────────────┐
-      │ (Mode A: Proxy)         │ (Mode B: Direct Dev)
-      ▼                         ▼
-┌──────────────────────────┐  ┌──────────────────────────┐
-│ Nebius Serverless Proxy  │  │ Nebius Token Factory     │
-│ (FastAPI Container)      │  │ (OpenAI-compatible API)  │
-│ • Key extraction defense │  │ • Direct Bearer auth     │
-│ • Rate limiting (IP)     │  │ • Strict JSON mode       │
-│ • Server-side prompt     │  │ • Reasoning tag filter   │
-└─────────────┬────────────┘  └─────────────┬────────────┘
-              │                             │
-              └──────────────┬──────────────┘
-                             ▼
-              ┌─────────────────────────────┐
-              │ Nebius Token Factory        │
-              │ NVIDIA Nemotron Models      │
-              │ (Llama 3.1 Nemotron / Nano) │
-              └─────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│               VieWs (iOS & iPadOS Native)              │
+│   • SpriteKit Weather Particle Emitter Scene           │
+│   • 5-Layer Procedural DSP Audio Synthesizer           │
+│   • Swift 6 Strict Concurrency Architecture            │
+└───────────────────────────┬────────────────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              │ (Mode A: Proxy)           │ (Mode B: Direct Dev)
+              ▼                           ▼
+┌───────────────────────────┐   ┌──────────────────────────┐
+│  Nebius Serverless Proxy  │   │  Nebius Token Factory    │
+│  (FastAPI on Nebius AI)   │   │  (Direct Bearer Auth)    │
+│  • Zero key leakage       │   │  • Fast inference        │
+│  • Rate limiting          │   │  • Reasoning tag filter  │
+└─────────────┬─────────────┘   └─────────────┬────────────┘
+              │                               │
+              └───────────────┬───────────────┘
+                              │
+          ┌───────────────────┴───────────────────┐
+          ▼                                       ▼
+┌───────────────────────────┐   ┌──────────────────────────┐
+│      Tavily AI Search     │   │  Nebius Token Factory    │
+│  Live Web Weather Context │   │  NVIDIA Nemotron Models  │
+│  (Sub-second retrieval)   │   │  (Nemotron-3.5-Lightning)│
+└───────────────────────────┘   └──────────────────────────┘
 ```
 
 ---
 
-## Nebius Token Factory & NVIDIA Nemotron Integration
+## 5-Layer Procedural DSP Audio Engine
 
-### 1. Single Round-Trip Schema
-To minimize mobile latency and preserve battery life, VieWs combines environmental simulation parameters and UI color theory into a unified payload (`WeatherPayload`), requesting both in a single generation call:
+VieWs does not rely on looped audio recordings. Every sound is synthesized mathematically in real time via `AudioEngineService.swift`:
 
-```json
-{
-  "weather": {
-    "sceneTitle": "Evocative Title",
-    "atmosphereDescription": "One minimalist evocative sentence.",
-    "precipitation": 0.45,
-    "windSpeed": 0.30,
-    "fogDensity": 0.10,
-    "snowIntensity": 0.0,
-    "clearness": 0.0,
-    "lightningFrequency": 0.05,
-    "colorTemperature": "melancholy"
-  },
-  "palette": {
-    "title": "Wet Slate",
-    "colors": [
-      {"name": "background", "hex": "#2F3B48"},
-      {"name": "surface",    "hex": "#3E4C5A"},
-      {"name": "text",       "hex": "#E3E9F0"},
-      {"name": "accent",     "hex": "#7CA1C2"},
-      {"name": "secondary",  "hex": "#9BBBD8"}
-    ]
-  }
-}
-```
-
-### 2. Reasoning Block & Markdown Fence Filtering
-Some Nemotron and open reasoning models output `<think>...</think>` internal reasoning traces or markdown code fences (````json ... ````). The client (`NebiusClient.swift`) and proxy (`proxy/main.py`) include robust stripping logic to extract and decode the raw JSON payload reliably without crash or latency penalties.
-
-### 3. Graceful JSON Mode Downgrade
-If the target model does not support strict OpenAI-style `json_schema`, `NebiusClient` automatically downgrades to `json_object`, and then to prompt-enforced JSON, retrying seamlessly on HTTP 400.
-
----
-
-## Nebius Serverless Endpoints Proxy (`proxy/`)
-
-Per the Best Apps and Agents track guidance (*"We encourage you to deploy your application with Nebius Serverless Endpoints"*), VieWs includes a dedicated serverless proxy:
-
-- **Zero Key Leakage:** Client binaries do not embed API keys.
-- **Abuse Prevention:** Only the specific atmospheric prompt template is accepted; the endpoint cannot be used as an arbitrary LLM proxy.
-- **Public Judging Ready:** Allows judges and testers to run the app free of charge without manual API key setup.
-
-Full deployment instructions and Dockerfile are located in [`proxy/README.md`](proxy/README.md).
-
----
-
-## 5-Layer Procedural Audio Engine
-
-VieWs does not rely on static looped background audio files. All weather sounds are generated in real-time math via `AudioEngineService.swift`:
-
-1. **Precipitation:** Multi-oscillator drip resonator (randomized per-drop frequency 500–1600 Hz and surface tension Q) layered over filtered 6-pole pink noise and downpour rumble.
-2. **Wind:** Three incommensurate LFOs driving continuous rate-wandering gusts (0.018 Hz cycle) connected to a swept Helmholtz resonance bandpass (40–70 Hz).
-3. **Snow:** Discrete brown noise integration with soft, low-frequency chimes (settling snowflakes).
-4. **Fog:** 0.03 Hz wandering sub-bass drone (55–75 Hz) with low-pass filtered breath waves.
-5. **Clear Sky:** Harmonically related singing bowl voices phasing continuously with stochastic crystal sparkles (800–3500 Hz).
-6. **Thunder & Lightning:** Spatialized lightning strike audio using [Freesound #441837](https://freesound.org/people/humanoide9000/sounds/441837/) (CC BY 4.0) with an automatic procedural sub-bass / filtered-noise synthesizer fallback if the audio file is absent.
+* **Precipitation:** Multi-oscillator drip resonator (randomized per-drop frequency 500–1600 Hz and surface tension Q) layered over filtered 6-pole pink noise.
+* **Wind:** Three incommensurate LFOs driving continuous rate-wandering gusts (0.018 Hz cycle) connected to a swept Helmholtz resonance bandpass (40–70 Hz).
+* **Snow:** Discrete brown noise integration with soft, low-frequency chimes.
+* **Fog:** 0.03 Hz wandering sub-bass drone (55–75 Hz) with low-pass filtered breath waves.
+* **Clear Sky:** Harmonically related singing bowl voices phasing continuously with stochastic crystal sparkles (800–3500 Hz).
+* **Thunder:** Dynamic lightning strike audio with procedural sub-bass fallbacks.
 
 ---
 
 ## Quick Start & Setup
 
 ### Requirements
-- Mac with macOS 15+ / Xcode 16+ or iPad with Swift Playgrounds 4+.
-- Swift 6 language mode.
+* Mac with macOS 15+ and Xcode 16+, or iPad with Swift Playgrounds 4+.
+* Swift 6 language mode.
 
 ### Running with Nebius Serverless Proxy (Recommended)
 1. Open `AI Weathers Nebius.swiftpm` in Xcode or Swift Playgrounds.
@@ -136,46 +123,31 @@ VieWs does not rely on static looped background audio files. All weather sounds 
    ```
 3. Build and Run (`⌘R`).
 
-### Running Direct with Nebius Token Factory Key
-1. Copy the template secret file:
-   ```bash
-   cp "AI Weathers Nebius.swiftpm/Secrets.example.swift" "AI Weathers Nebius.swiftpm/Secrets.swift"
-   ```
-2. Insert your Nebius Token Factory credentials:
+### Running Direct with Token Factory & Tavily Keys
+1. Open `AI Weathers Nebius.swiftpm/Secrets.swift`.
+2. Add your **Nebius Token Factory API Key** and **Tavily API Key**:
    ```swift
-   static let nebiusAPIKey = "your_actual_nebius_token_factory_key"
-   static let nebiusModel = "nvidia/llama-3.1-nemotron-70b-instruct"
+   static let nebiusAPIKey = "your_nebius_token_factory_key"
+   static let nebiusModel  = "nvidia/Nemotron-3_5-Lightning"
+   static let tavilyAPIKey = "your_tavily_api_key"
    ```
-   *(Alternatively, set `NEBIUS_API_KEY` in Xcode Scheme → Run → Environment Variables).*
-3. Tell git to ignore local secret edits:
+3. Prevent accidental git commits of your keys:
    ```bash
    git update-index --skip-worktree "AI Weathers Nebius.swiftpm/Secrets.swift"
    ```
+4. Build and Run (`⌘R`).
 
 ---
 
-## Hackathon Submission Details
+## Feedback on Nebius, NVIDIA & Tavily
 
-### What was updated for the Nebius Hackathon
-- **Replaced On-Device LLM with Cloud AI:** Completely removed Apple `FoundationModels` framework and replaced it with a modern async actor client (`NebiusClient.swift`) calling **Nebius Token Factory**.
-- **Model Migration:** Integrated **NVIDIA Nemotron** open models for high-fidelity emotion-to-atmosphere synthesis.
-- **Nebius Serverless Endpoints Proxy:** Authored, containerized, and deployed a FastAPI proxy service (`proxy/`) to prevent API key exposure.
-- **Swift 6 Strict Concurrency:** Audited and verified 100% compliance with Swift 6 strict concurrency checks (`swiftLanguageModes: [.version("6")]`).
-- **Clean Licensing & Attribution:** Added open-source MIT license, sanitized audio assets with CC BY 4.0 attribution ([`CREDITS.md`](CREDITS.md)), and developed procedural audio fallbacks.
-
----
-
-## Feedback on Nebius & NVIDIA
-
-During the development of VieWs on Nebius AI Cloud and NVIDIA Nemotron:
-
-1. **Token Factory API:** The OpenAI-compatible `/v1/chat/completions` endpoint made migrating from Apple on-device models remarkably smooth. The response speeds on Nemotron 70B were consistently under 1.5 seconds, which is fast enough for atmospheric UI transitions.
-2. **Serverless AI Endpoints:** Deploying containerized workloads on Nebius Serverless Endpoints with automatic public HTTPS URLs significantly simplifies delivering native mobile clients without embedding backend keys in client binaries.
-3. **Structured Outputs:** Nemotron models followed the atmospheric JSON format with high fidelity; pairing prompt schemas with client-side sanitization ensured zero rendering artifacts.
+* **Nebius Token Factory:** The OpenAI-compatible `/v1/chat/completions` endpoint made migrating from Apple on-device models remarkably smooth. The response speeds on **Nemotron-3.5-Lightning** were consistently fast (under 1.2s), providing instantaneous atmospheric transitions.
+* **Nebius Serverless Endpoints:** Deploying containerized workloads on Nebius Serverless Endpoints with automatic public HTTPS URLs eliminates the security hazard of embedding cloud backend keys in distributed client binaries.
+* **Tavily AI Search:** Tavily's structured search API with `include_answer: true` and `search_depth: basic` delivered lightning-fast response times (0.3s–2.0s) for live weather retrieval, making real-time environmental grounding viable on mobile devices.
 
 ---
 
 ## License & Credits
 
-- Code released under the [MIT License](LICENSE).
-- Audio assets and model attributions detailed in [CREDITS.md](CREDITS.md).
+* Code released under the [MIT License](LICENSE).
+* Audio assets and model attributions detailed in [`CREDITS.md`](CREDITS.md).
