@@ -185,27 +185,59 @@ actor NebiusClient {
     }
 
     /// Fast, zero-network check to verify if the user input contains a place or location reference.
+    /// Combines universal preposition extraction (catches any city/town worldwide) with global destination recognition.
     static func containsLocationReference(_ text: String) -> Bool {
         let lower = text.lowercased()
-        // 1. Common prepositions indicating location: "in <place>", "at <place>", "from <place>", "miss <place>"
-        let prepositionPattern = #"\b(in|at|from|to|near|around|visiting|miss|missing)\s+[a-zA-Z]+"#
-        if let regex = try? NSRegularExpression(pattern: prepositionPattern, options: []),
-           regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
-            return true
+
+        // 1. Universal preposition + place detection: "in Zurich", "at Oaxaca", "from Reykjavik", "miss Banff", "skies of Patagonia"
+        let prepositionPattern = #"\b(in|at|from|to|near|around|visiting|miss|missing|of|over)\s+([a-zA-Z]+)"#
+        if let regex = try? NSRegularExpression(pattern: prepositionPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)),
+           let targetRange = Range(match.range(at: 2), in: lower) {
+            let target = String(lower[targetRange])
+            // Filter out common psychological states or grammatical words that follow prepositions
+            let nonLocations: Set<String> = [
+                "love", "pain", "peace", "grief", "silence", "fear", "bed", "mind", "home",
+                "work", "tears", "doubt", "a", "the", "my", "this", "that", "all", "darkness",
+                "light", "hope", "despair", "chaos", "thought", "pieces", "shambles", "awe"
+            ]
+            if !nonLocations.contains(target) {
+                return true
+            }
         }
-        // 2. Common cities and abbreviations
-        let places = [
-            "ny", "nyc", "new york", "kyoto", "tokyo", "london", "paris",
-            "berlin", "madrid", "rome", "chicago", "la", "sf", "miami",
-            "seattle", "boston", "vancouver", "toronto", "oslo", "stockholm"
+
+        // 2. Global cities, countries, and destinations (catches standalone names without prepositions: "Zurich chill", "Oaxaca sunset")
+        let globalLocations: Set<String> = [
+            // North America
+            "ny", "nyc", "new york", "la", "los angeles", "sf", "san francisco", "chicago",
+            "miami", "seattle", "boston", "austin", "denver", "portland", "dallas", "houston",
+            "atlanta", "toronto", "vancouver", "montreal", "mexico", "mexico city", "oaxaca",
+            "cancun", "guadalajara", "monterrey", "havana", "san juan",
+            // Europe
+            "london", "paris", "berlin", "madrid", "barcelona", "rome", "milan", "venice",
+            "amsterdam", "brussels", "vienna", "prague", "budapest", "zurich", "geneva",
+            "dublin", "edinburgh", "copenhagen", "stockholm", "oslo", "helsinki", "reykjavik",
+            "athens", "lisbon", "warsaw", "krakow", "munich", "frankfurt", "patagonia",
+            // Asia & Middle East
+            "tokyo", "kyoto", "osaka", "seoul", "beijing", "shanghai", "hong kong", "taipei",
+            "singapore", "bangkok", "bali", "mumbai", "delhi", "dubai", "doha", "hanoi",
+            // South America & Oceania
+            "buenos aires", "santiago", "lima", "bogota", "medellin", "rio", "rio de janeiro",
+            "sao paulo", "montevideo", "sydney", "melbourne", "auckland",
+            // Countries & Continents
+            "japan", "italy", "france", "spain", "germany", "greece", "norway", "sweden",
+            "iceland", "switzerland", "ireland", "scotland", "brazil", "argentina", "chile",
+            "colombia", "peru", "korea", "china", "india", "australia", "new zealand", "canada"
         ]
-        for p in places {
-            let pPattern = #"\b"# + p + #"\b"#
-            if let regex = try? NSRegularExpression(pattern: pPattern, options: []),
+
+        for loc in globalLocations {
+            let locPattern = #"\b"# + NSRegularExpression.escapedPattern(for: loc) + #"\b"#
+            if let regex = try? NSRegularExpression(pattern: locPattern, options: .caseInsensitive),
                regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.utf16.count)) != nil {
                 return true
             }
         }
+
         return false
     }
 
