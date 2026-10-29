@@ -394,6 +394,8 @@ class WeatherScene: SKScene {
         guard let state else {
             targetPrecipitation = 0; targetWindSpeed = 0; targetFogDensity = 0
             targetSnowIntensity = 0; targetClearness = 0; targetLightningFrequency = 0
+            colorTemperature = "neutral"
+            lastParticleHex.removeAll()
             print("[VieWs][STATE] reset → all targets zeroed")
             return
         }

@@ -93,12 +93,6 @@ struct OnboardingView: View {
                             .opacity(continueVisible ? 1 : 0)
                             .animation(.easeInOut(duration: 0.8), value: continueVisible)
                             .accessibilityHidden(true)
-                        Text("Atmospheres powered by NVIDIA Nemotron on Nebius")
-                            .font(.system(size: 11, weight: .regular, design: .monospaced))
-                            .foregroundColor(ink.opacity(0.28))
-                            .multilineTextAlignment(.center)
-                            .opacity(continueVisible ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.8), value: continueVisible)
                     }
                     .padding(.horizontal, 44)
                 }
@@ -146,9 +140,10 @@ struct OnboardingView: View {
             UserDefaults.standard.set(true, forKey: "vw.hasSeenOnboardingV1")
             AudioEngineService.shared.fadeOutAndReset()
             weatherScene.applyWeatherState(nil)
-            withAnimation(.easeInOut(duration: 0.9)) { isPresented = false }
+            withAnimation(.easeInOut(duration: 0.6)) { isPresented = false }
             Task {
-                try? await Task.sleep(for: .seconds(0.5))
+                // Allow the onboarding screen to fade out completely before focusing
+                try? await Task.sleep(for: .milliseconds(700))
                 onComplete()
             }
         default:

@@ -470,6 +470,22 @@ struct ContentView: View {
                 .opacity(0.65)
                 .padding(.top, 22)
                 .accessibilityHidden(true)
+
+            // Powered by Nebius tag on the main page
+            HStack(spacing: 5) {
+                Text("powered by")
+                    .font(.system(size: 11, weight: .light, design: .serif))
+                Text("NEBIUS")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .tracking(1.4)
+                Text("•")
+                    .font(.system(size: 8))
+                Text("NVIDIA Nemotron")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+            }
+            .foregroundColor(paletteText.opacity(0.35))
+            .padding(.top, 28)
+            .accessibilityLabel("Powered by Nebius and NVIDIA Nemotron")
         }
         // Keep the layout anchored — prevent keyboard from pushing the view up.
         .ignoresSafeArea(.keyboard)
