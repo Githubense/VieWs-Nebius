@@ -577,14 +577,18 @@ final class AudioEngineService: @unchecked Sendable {
         }
 
         // Preload thunder.mp3 into a PCM buffer for zero-latency scheduling.
-        // Swift Playgrounds .swiftpm packages embed resources inside an SPM module bundle
-        // (AppModule_AppModule.bundle) nested within the main app bundle, so Bundle.main
-        // alone won't find the file. We enumerate the entire bundle tree as a fallback.
         let thunderURL: URL? = {
             let exts = ["mp3", "wav", "m4a", "caf", "aiff"]
             for ext in exts {
                 if let u = Bundle.main.url(forResource: "thunder", withExtension: ext) { return u }
                 if let u = Bundle.main.url(forResource: "thunder", withExtension: ext, subdirectory: "Resources") { return u }
+            }
+            // Check all bundles in the process (including SPM resource bundles)
+            for bundle in Bundle.allBundles + Bundle.allFrameworks {
+                for ext in exts {
+                    if let u = bundle.url(forResource: "thunder", withExtension: ext) { return u }
+                    if let u = bundle.url(forResource: "thunder", withExtension: ext, subdirectory: "Resources") { return u }
+                }
             }
             let fm = FileManager.default
             if let enumerator = fm.enumerator(
