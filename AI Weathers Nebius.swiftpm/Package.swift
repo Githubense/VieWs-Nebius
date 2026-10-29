@@ -33,6 +33,7 @@ let package = Package(
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
             ],
             capabilities: [
+                .outgoingNetworkConnections()
             ],
             appCategory: .healthcareFitness,
             additionalInfoPlistContentFilePath: "AppInfo.plist"
