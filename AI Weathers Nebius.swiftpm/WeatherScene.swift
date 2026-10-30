@@ -394,9 +394,19 @@ class WeatherScene: SKScene {
         guard let state else {
             targetPrecipitation = 0; targetWindSpeed = 0; targetFogDensity = 0
             targetSnowIntensity = 0; targetClearness = 0; targetLightningFrequency = 0
+            currentPrecipitation = 0; currentWindSpeed = 0; currentFogDensity = 0
+            currentSnowIntensity = 0; currentClearness = 0; currentLightningFrequency = 0
+            rainEmitter?.particleBirthRate = 0
+            snowEmitter?.particleBirthRate = 0
+            fogEmitter?.particleBirthRate = 0
+            goldenEmitter?.particleBirthRate = 0
+            rainEmitter?.resetSimulation()
+            snowEmitter?.resetSimulation()
+            fogEmitter?.resetSimulation()
+            goldenEmitter?.resetSimulation()
             colorTemperature = "neutral"
             lastParticleHex.removeAll()
-            print("[VieWs][STATE] reset → all targets zeroed")
+            print("[VieWs][STATE] reset → all targets zeroed and particles cleared")
             return
         }
         targetPrecipitation      = state.precipitation

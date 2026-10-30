@@ -16,10 +16,9 @@ struct ContentView: View {
     /// Controls whether onboarding is presented.
     @State private var showOnboarding: Bool = true
 
-    /// Tutorial hint system — plays once after the first generated scene.
+    /// Tutorial hint system — plays once after the first generated scene (active during dev reproduction).
     @State private var tutorialPhase: TutorialPhase = .idle
-    @State private var tutorialDone: Bool =
-        UserDefaults.standard.bool(forKey: "vw.hasSeenTutorialV1")
+    @State private var tutorialDone: Bool = false
 
     @State private var emotionText: String = ""
 
