@@ -13,12 +13,14 @@ struct ContentView: View {
     /// Prevents a duplicate save when loading an experience from history
     /// (which also triggers the palette onChange).
     @State private var isRestoringFromHistory: Bool = false
-    /// Controls whether onboarding is presented.
-    @State private var showOnboarding: Bool = true
+    /// Shown on first launch only; gated by UserDefaults.
+    @State private var showOnboarding: Bool =
+        !UserDefaults.standard.bool(forKey: "vw.hasSeenOnboardingV1")
 
-    /// Tutorial hint system — plays once after the first generated scene (active during dev reproduction).
+    /// Tutorial hint system — plays once after the first generated scene.
     @State private var tutorialPhase: TutorialPhase = .idle
-    @State private var tutorialDone: Bool = false
+    @State private var tutorialDone: Bool =
+        UserDefaults.standard.bool(forKey: "vw.hasSeenTutorialV1")
 
     @State private var emotionText: String = ""
 
