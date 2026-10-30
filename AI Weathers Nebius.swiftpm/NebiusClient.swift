@@ -17,7 +17,6 @@ enum NebiusConfig {
     static var proxyURL: URL? {
         if let env = ProcessInfo.processInfo.environment["NEBIUS_PROXY_URL"], let url = URL(string: env), !env.isEmpty { return url }
         if let stored = UserDefaults.standard.string(forKey: "nebius_proxy_url"), let url = URL(string: stored), !stored.isEmpty { return url }
-        if !Secrets.nebiusProxyURL.isEmpty, let url = URL(string: Secrets.nebiusProxyURL) { return url }
         return nil
     }
 
