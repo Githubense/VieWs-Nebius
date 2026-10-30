@@ -49,6 +49,7 @@ class AIService {
     Rules:
     - sceneTitle must be 2-3 words capturing the essence of the emotion.
     - All numeric values must be between 0.0 and 0.8. Use the full range — do not default everything to 0.
+    - Output pure numeric or string literals only: NEVER add parenthetical notes or comments after values (e.g. do not write '0.0 (none)' or '0.3 (gentle)').
     - colorTemperature must be one of: warm, cool, neutral, melancholy, golden, crimson, dusk, arctic, ember, ash.
     - Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most one to non-zero.
     """

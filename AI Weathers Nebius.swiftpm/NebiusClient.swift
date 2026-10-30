@@ -442,7 +442,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
     // MARK: Parsing (static so it can be unit-tested without the network)
 
-    /// Sanitizes common LLM output anomalies (single quotes, trailing commas, escaped quotes).
+    /// Sanitizes common LLM output anomalies (single quotes, trailing commas, parenthetical notes, comments).
     static func repairJSON(_ raw: String) -> String {
         var str = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -451,13 +451,22 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
             return str
         }
 
-        // 2. Remove trailing commas before closing braces/brackets (e.g. ", }" or ", ]")
+        // 2. Strip single-line comments // ...
+        str = str.replacingOccurrences(of: #"//[^\n\r]*"#, with: "", options: .regularExpression)
+
+        // 3. Remove inline parenthetical comments after numbers: e.g. "precipitation": 0.0 (none), -> "precipitation": 0.0,
+        str = str.replacingOccurrences(of: #":\s*([0-9.]+)\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
+
+        // 4. Remove inline parenthetical comments after strings: e.g. "colorTemperature": "golden" (warm), -> "colorTemperature": "golden",
+        str = str.replacingOccurrences(of: #":\s*("[^"]*")\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
+
+        // 5. Remove trailing commas before closing braces/brackets (e.g. ", }" or ", ]")
         str = str.replacingOccurrences(of: #",\s*([}\]])"#, with: "$1", options: .regularExpression)
 
-        // 3. Convert single quotes around JSON keys: e.g. 'sceneTitle': -> "sceneTitle":
+        // 6. Convert single quotes around JSON keys: e.g. 'sceneTitle': -> "sceneTitle":
         str = str.replacingOccurrences(of: #"'([A-Za-z0-9_]+)'\s*:"#, with: "\"$1\":", options: .regularExpression)
 
-        // 4. Convert single quotes around string values: e.g. : 'some value' -> : "some value"
+        // 7. Convert single quotes around string values: e.g. : 'some value' -> : "some value"
         let valRegex = #":\s*'((?:\\'|[^'])*)'"#
         if let regex = try? NSRegularExpression(pattern: valRegex) {
             let nsStr = str as NSString
@@ -472,6 +481,10 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                 str = (str as NSString).replacingCharacters(in: fullRange, with: replacement)
             }
         }
+
+        // 8. Clean up any remaining parenthetical notes and trailing commas after quote replacement
+        str = str.replacingOccurrences(of: #":\s*([0-9.]+)\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
+        str = str.replacingOccurrences(of: #",\s*([}\]])"#, with: "$1", options: .regularExpression)
 
         return str
     }
