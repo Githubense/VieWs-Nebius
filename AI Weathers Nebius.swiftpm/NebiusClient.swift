@@ -231,7 +231,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
     }
 
     /// Universal grammatical-semantic check to detect if the user input contains a location reference.
-    /// Operates without static city dictionaries by analyzing spatial prepositions and destination phrasing,
+    /// Operates by analyzing spatial prepositions ("in Kyoto", "miss Napoli") and recognized destinations,
     /// while strictly filtering out internal psychological/emotional states and personal pronouns.
     static func detectLocation(in text: String) -> String? {
         let clean = text.replacingOccurrences(of: "Emotion: ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -253,7 +253,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
         // 2. Emotional, psychological, and abstract terms that should NEVER trigger weather searches
         let abstractWords: Set<String> = [
-            // Internal feelings & mental states (English & Spanish)
+            // Internal feelings, moods & sentiments (English & Spanish)
             "love", "pain", "peace", "grief", "silence", "fear", "doubt", "darkness",
             "light", "hope", "despair", "chaos", "thought", "thoughts", "pieces", "shambles",
             "awe", "melancholy", "sad", "sadness", "happy", "happiness", "peaceful", "anxious",
@@ -263,7 +263,17 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
             "stillness", "heartbroken", "tired", "stressed", "stress", "bliss", "gloomy",
             "depressed", "depression", "excited", "nervous", "empty", "emptiness", "lost",
             "daydreaming", "sorrow", "search", "head", "heart", "chest", "soul", "memory", "memories", "mood",
+            "good", "bad", "great", "fine", "okay", "ok", "terrible", "awful", "horrible", "weird",
+            "down", "up", "low", "high", "numb", "cold", "warm", "hurt", "broken", "well",
+            "sick", "not", "no", "yes", "very", "so", "really", "pretty", "kinda", "super", "quite",
+            "just", "much", "little", "bit", "extremely", "totally", "feeling", "feel", "feels", "felt",
+            "am", "im", "i'm", "going", "doing", "better", "best", "worse", "worst", "meh", "blah",
+            "unhappy", "heavy", "achy", "dont", "don't", "cant", "can't", "wont", "won't", "isnt", "isn't",
+            "off", "blue", "gray", "grey", "nothing", "everything", "something",
+            // Spanish feelings & modifiers
             "amor", "dolor", "paz", "soledad", "tristeza", "miedo", "rabia", "nostalgia", "calma",
+            "bien", "mal", "bueno", "malo", "mas", "menos", "muy", "tan", "estoy", "siento",
+            "nada", "todo", "poco", "mucho", "bastante", "algo", "fatal", "pesimo", "genial",
             // Weather nouns (should not trigger city search)
             "rain", "snow", "thunder", "fog", "clouds", "sun", "wind", "storm", "drizzle", "sunshine",
             "lluvia", "nieve", "viento", "sol", "tormenta", "niebla",
@@ -274,6 +284,23 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
             "moment", "time", "life", "world", "here", "there", "school", "office", "room",
             "trabajo", "casa", "cama", "vida", "mundo", "aqui", "alli", "ti", "ella", "el"
         ]
+
+        func isAbstract(_ word: String) -> Bool {
+            let w = word.lowercased()
+            if abstractWords.contains(w) { return true }
+            // Collapse repeated letters (e.g. "goood" -> "good", "sooo" -> "so", "baddd" -> "bad")
+            if let collapsed = try? NSRegularExpression(pattern: #"(.)\1+"#).stringByReplacingMatches(
+                in: w, options: [], range: NSRange(location: 0, length: (w as NSString).length), withTemplate: "$1"
+            ), abstractWords.contains(collapsed) {
+                return true
+            }
+            if let doubleCollapsed = try? NSRegularExpression(pattern: #"(.)\1{2,}"#).stringByReplacingMatches(
+                in: w, options: [], range: NSRange(location: 0, length: (w as NSString).length), withTemplate: "$1$1"
+            ), abstractWords.contains(doubleCollapsed) {
+                return true
+            }
+            return false
+        }
 
         let weatherAdjectives: Set<String> = [
             "rainy", "sunny", "cloudy", "foggy", "snowy", "cold", "warm", "chilly", "windy",
@@ -290,15 +317,14 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                 let candidate = String(clean[targetRange]).trimmingCharacters(in: .whitespacesAndNewlines)
                 let words = candidate.components(separatedBy: CharacterSet.whitespacesAndNewlines).filter { !$0.isEmpty }
                 guard let first = words.first else { continue }
-                let firstLower = first.lowercased()
-                if abstractWords.contains(firstLower) || firstLower.count <= 2 { continue }
+                if isAbstract(first) || first.count <= 2 { continue }
 
                 // 3-word place (e.g. Rio de Janeiro, Cabo San Lucas)
                 if words.count >= 3 {
                     let secondLower = words[1].lowercased()
                     let thirdLower = words[2].lowercased()
                     let particles: Set<String> = ["de", "del", "da", "san", "la", "los", "las", "el", "st", "saint"]
-                    if particles.contains(secondLower) && !abstractWords.contains(thirdLower) {
+                    if particles.contains(secondLower) && !isAbstract(thirdLower) {
                         let particle = ["san", "st", "saint"].contains(secondLower) ? words[1].capitalized : words[1].lowercased()
                         return "\(first.capitalized) \(particle) \(words[2].capitalized)"
                     }
@@ -306,8 +332,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
                 // 2-word place (e.g. New York, San Cristobal, Puerto Escondido)
                 if words.count >= 2 {
-                    let secondLower = words[1].lowercased()
-                    if !abstractWords.contains(secondLower) {
+                    if !isAbstract(words[1]) {
                         return "\(first.capitalized) \(words[1].capitalized)"
                     }
                 }
@@ -321,16 +346,39 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
         if lettersOnly.count == 2 {
             let w0 = lettersOnly[0].lowercased()
             let w1 = lettersOnly[1].lowercased()
-            if weatherAdjectives.contains(w0) && !abstractWords.contains(w1) && w1.count > 2 {
+            if weatherAdjectives.contains(w0) && !isAbstract(w1) && w1.count > 2 {
                 return lettersOnly[1].capitalized
             }
         }
 
-        // 5. Standalone destination query (1 to 2 words):
-        if lettersOnly.count >= 1 && lettersOnly.count <= 2 {
-            if lettersOnly.allSatisfy({ !abstractWords.contains($0.lowercased()) && $0.count > 2 }) {
-                return lettersOnly.map { $0.capitalized }.joined(separator: " ")
-            }
+        // 5. Standalone destination query (exact match for recognized world cities / destinations)
+        let knownDestinations: Set<String> = [
+            "tokyo", "kyoto", "osaka", "sapporo", "fukuoka", "okinawa",
+            "napoli", "naples", "rome", "roma", "milan", "milano", "florence", "firenze", "venice", "venezia",
+            "paris", "lyon", "marseille", "nice", "bordeaux",
+            "london", "manchester", "edinburgh", "glasgow", "dublin",
+            "madrid", "barcelona", "seville", "valencia", "bilbao",
+            "berlin", "munich", "hamburg", "frankfurt", "cologne",
+            "amsterdam", "rotterdam", "brussels", "antwerp", "vienna", "prague", "budapest", "warsaw", "krakow",
+            "stockholm", "oslo", "copenhagen", "helsinki", "reykjavik", "zurich", "geneva",
+            "athens", "istanbul", "ankara", "lisbon", "porto",
+            "new york", "los angeles", "chicago", "san francisco", "seattle", "austin", "denver",
+            "miami", "boston", "honolulu", "portland", "new orleans", "atlanta",
+            "toronto", "vancouver", "montreal", "calgary",
+            "sydney", "melbourne", "brisbane", "auckland",
+            "seoul", "busan", "singapore", "hong kong", "taipei", "bangkok", "hanoi", "manila", "jakarta",
+            "delhi", "mumbai", "bangalore", "dubai", "doha", "cairo", "cape town",
+            "mexico city", "oaxaca", "cancun", "guadalajara", "monterrey", "puerto escondido",
+            "buenos aires", "rio", "rio de janeiro", "sao paulo", "bogota", "medellin", "cartagena",
+            "lima", "cusco", "santiago", "havana"
+        ]
+
+        let joinedQuery = lettersOnly.map { $0.lowercased() }.joined(separator: " ")
+        if knownDestinations.contains(joinedQuery) {
+            return lettersOnly.map { $0.capitalized }.joined(separator: " ")
+        }
+        if lettersOnly.count == 1, let single = lettersOnly.first, knownDestinations.contains(single.lowercased()) {
+            return single.capitalized
         }
 
         return nil
@@ -446,45 +494,66 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
     static func repairJSON(_ raw: String) -> String {
         var str = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // If the model wrapped the JSON in conversational text, isolate the JSON substring first
+        if let open = str.firstIndex(of: "{"), let close = str.lastIndex(of: "}"), open < close {
+            str = String(str[open...close]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         // 1. If already valid JSON according to JSONSerialization, keep it
         if let data = str.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil {
             return str
         }
 
         // 2. Strip single-line comments // ...
-        str = str.replacingOccurrences(of: #"//[^\n\r]*"#, with: "", options: .regularExpression)
+        if let commentRegex = try? NSRegularExpression(pattern: #"//[^\n\r]*"#) {
+            str = commentRegex.stringByReplacingMatches(
+                in: str, options: [], range: NSRange(location: 0, length: (str as NSString).length), withTemplate: ""
+            )
+        }
 
         // 3. Remove inline parenthetical comments after numbers: e.g. "precipitation": 0.0 (none), -> "precipitation": 0.0,
-        str = str.replacingOccurrences(of: #":\s*([0-9.]+)\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
+        if let numNoteRegex = try? NSRegularExpression(pattern: #":\s*([0-9.]+)\s*\([^)]*\)"#) {
+            str = numNoteRegex.stringByReplacingMatches(
+                in: str, options: [], range: NSRange(location: 0, length: (str as NSString).length), withTemplate: ": $1"
+            )
+        }
 
         // 4. Remove inline parenthetical comments after strings: e.g. "colorTemperature": "golden" (warm), -> "colorTemperature": "golden",
-        str = str.replacingOccurrences(of: #":\s*("[^"]*")\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
+        if let strNoteRegex = try? NSRegularExpression(pattern: #":\s*("[^"]*")\s*\([^)]*\)"#) {
+            str = strNoteRegex.stringByReplacingMatches(
+                in: str, options: [], range: NSRange(location: 0, length: (str as NSString).length), withTemplate: ": $1"
+            )
+        }
 
-        // 5. Remove trailing commas before closing braces/brackets (e.g. ", }" or ", ]")
-        str = str.replacingOccurrences(of: #",\s*([}\]])"#, with: "$1", options: .regularExpression)
+        // 5. Convert single quotes around JSON keys: e.g. 'sceneTitle': -> "sceneTitle":
+        if let keyRegex = try? NSRegularExpression(pattern: #"'([A-Za-z0-9_]+)'\s*:"#) {
+            str = keyRegex.stringByReplacingMatches(
+                in: str, options: [], range: NSRange(location: 0, length: (str as NSString).length), withTemplate: "\"$1\":"
+            )
+        }
 
-        // 6. Convert single quotes around JSON keys: e.g. 'sceneTitle': -> "sceneTitle":
-        str = str.replacingOccurrences(of: #"'([A-Za-z0-9_]+)'\s*:"#, with: "\"$1\":", options: .regularExpression)
-
-        // 7. Convert single quotes around string values: e.g. : 'some value' -> : "some value"
-        let valRegex = #":\s*'((?:\\'|[^'])*)'"#
-        if let regex = try? NSRegularExpression(pattern: valRegex) {
-            let nsStr = str as NSString
-            let matches = regex.matches(in: str, options: [], range: NSRange(location: 0, length: nsStr.length))
+        // 6. Convert single quotes around string values: e.g. : 'some value' -> : "some value"
+        let valPattern = #":\s*'((?:\\'|[^'\r\n])*)'(?=\s*[,}\]\r\n]|$)"#
+        if let valRegex = try? NSRegularExpression(pattern: valPattern) {
+            let currentNsStr = str as NSString
+            let matches = valRegex.matches(in: str, options: [], range: NSRange(location: 0, length: currentNsStr.length))
             for match in matches.reversed() {
-                let fullRange = match.range(at: 0)
+                let matchRange = match.range(at: 0)
                 let innerRange = match.range(at: 1)
-                let inner = nsStr.substring(with: innerRange)
+                let inner = (str as NSString).substring(with: innerRange)
                 let fixedInner = inner.replacingOccurrences(of: "\"", with: "\\\"")
                                       .replacingOccurrences(of: "\\'", with: "'")
                 let replacement = ": \"\(fixedInner)\""
-                str = (str as NSString).replacingCharacters(in: fullRange, with: replacement)
+                str = (str as NSString).replacingCharacters(in: matchRange, with: replacement)
             }
         }
 
-        // 8. Clean up any remaining parenthetical notes and trailing commas after quote replacement
-        str = str.replacingOccurrences(of: #":\s*([0-9.]+)\s*\([^)]*\)"#, with: ": $1", options: .regularExpression)
-        str = str.replacingOccurrences(of: #",\s*([}\]])"#, with: "$1", options: .regularExpression)
+        // 7. Remove trailing commas before closing braces/brackets (e.g. ", }" or ", ]")
+        if let commaRegex = try? NSRegularExpression(pattern: #",\s*([}\]])"#) {
+            str = commaRegex.stringByReplacingMatches(
+                in: str, options: [], range: NSRange(location: 0, length: (str as NSString).length), withTemplate: "$1"
+            )
+        }
 
         return str
     }
@@ -564,7 +633,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                     escape = true
                     continue
                 }
-                if char == "\"" || char == "'" {
+                if char == "\"" {
                     inString.toggle()
                     continue
                 }
