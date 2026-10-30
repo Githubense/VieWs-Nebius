@@ -93,7 +93,7 @@ actor NebiusClient {
     static let shared = NebiusClient()
 
     private enum Mode: String { case jsonSchema = "json_schema", jsonObject = "json_object", none }
-    private var mode: Mode = Mode(rawValue: Secrets.responseMode) ?? .none
+    private var mode: Mode = (Secrets.responseMode == "none") ? .none : .jsonSchema
 
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.ephemeral
@@ -179,13 +179,12 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 7.0
 
-        let query = "What is the current temperature and weather conditions in \(location) right now?"
+        let query = "current weather temperature and sky conditions in \(location) right now"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
             "search_depth": "basic",
             "include_answer": true,
-            "exclude_domains": ["weatherapi.com"],
             "max_results": 4
         ]
 
@@ -207,17 +206,25 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                 let results: [TavilyResult]?
             }
             if let parsed = try? JSONDecoder().decode(TavilyResp.self, from: data) {
-                if let answer = parsed.answer, !answer.isEmpty,
-                   !answer.localizedCaseInsensitiveContains("do not provide"),
-                   !answer.localizedCaseInsensitiveContains("could not find") {
-                    print("[VieWs][Tavily] Grounding fetched: \(answer.prefix(90))...")
-                    return answer
+                if let rawAnswer = parsed.answer, !rawAnswer.isEmpty {
+                    // Strip trailing boilerplate disclaimer sentences while keeping valid weather sentences
+                    let sentences = rawAnswer.components(separatedBy: ". ")
+                        .filter { !$0.localizedCaseInsensitiveContains("do not provide") && !$0.localizedCaseInsensitiveContains("could not find") }
+                    let cleanedAnswer = sentences.joined(separator: ". ").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleanedAnswer.isEmpty && (cleanedAnswer.contains("°") || cleanedAnswer.localizedCaseInsensitiveContains("degrees")) {
+                        print("[VieWs][Tavily] Grounding fetched: \(cleanedAnswer.prefix(90))...")
+                        return cleanedAnswer
+                    }
                 }
-                // Fallback to top result snippet if the AI answer synthesis missed
-                if let snippet = parsed.results?.first(where: { ($0.content?.contains("°") ?? false) })?.content,
+                // Fallback to top result snippet (excluding monthly climate summary tables)
+                let results = parsed.results ?? []
+                if let snippet = results.compactMap(\.content).first(where: {
+                    $0.contains("°") && !$0.localizedCaseInsensitiveContains("sunny days")
+                }) ?? results.compactMap(\.content).first(where: { $0.contains("°") }),
                    !snippet.isEmpty {
-                    print("[VieWs][Tavily] Grounding snippet: \(snippet.prefix(90))...")
-                    return snippet
+                    let capped = String(snippet.prefix(350))
+                    print("[VieWs][Tavily] Grounding snippet: \(capped.prefix(90))...")
+                    return capped
                 }
             } else {
                 print("[VieWs][Tavily] Response JSON decoding failed")
@@ -438,12 +445,13 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
         var body: [String: Any] = [
             "model": NebiusConfig.model,
+            "chat_template_kwargs": ["enable_thinking": false],
             "messages": [
                 ["role": "system", "content": system],
                 ["role": "user",   "content": user]
             ],
-            "temperature": 0.4,
-            "max_tokens": 3000,
+            "temperature": 0.45,
+            "max_tokens": 600,
             "stream": false
         ]
         switch mode {
@@ -660,11 +668,12 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
         // Discard any candidates that are just echoed placeholder templates from system prompts
         let nonPlaceholders = candidates.filter {
-            !$0.contains("two evocative words") &&
-            !$0.contains("one minimalist sentence") &&
-            !$0.contains("describing the physical atmosphere") &&
-            !$0.contains("Title Here") &&
-            !$0.contains("Evocative Title")
+            !$0.localizedCaseInsensitiveContains("evocative") &&
+            !$0.localizedCaseInsensitiveContains("minimalist sentence") &&
+            !$0.localizedCaseInsensitiveContains("without metaphors") &&
+            !$0.localizedCaseInsensitiveContains("describing the physical") &&
+            !$0.localizedCaseInsensitiveContains("title here") &&
+            !$0.localizedCaseInsensitiveContains("e.g.")
         }
 
         // Pick the LAST non-placeholder candidate (the final generated output at the end of the thought trace)

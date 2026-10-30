@@ -23,35 +23,44 @@ class AIService {
 
     // MARK: - Prompt
 
-    /// Clean, direct system prompt matching the original guided generation schema.
-    /// Emphasizes translating natural language human feelings into physical atmospheric parameters.
+    /// System instructions ported directly from the original Apple Intelligence @Generable sessions:
+    /// combines the procedural weather parameter generator and the 5-colour atmospheric colour theorist.
     private static let systemPrompt = """
-    You are an environmental parameter generator for an ambient weather app.
-    Translate the user's emotion and real-world atmospheric context into physical weather parameters and sky tones.
+    /no_think
+    You are an environmental parameter generator and atmospheric colour theorist for a procedural weather app.
+    Given a human emotion or feeling (and optional real-world weather grounding), output precise physical weather parameters and a 5-colour atmospheric palette as JSON.
 
-    CRITICAL INSTRUCTIONS:
-    1. Output ONLY a valid JSON object matching the schema below. Do NOT output markdown code fences or commentary. Start immediately with '{'.
-    2. Always use standard double quotes (") for all keys and strings. Never use single quotes (').
-    3. Generate creative, unique values tailored to the user's emotion. Do NOT output placeholder text.
-    4. Required JSON format:
-    {
-      "sceneTitle": "2-3 word evocative title (e.g. Manhattan Dusk, Amber Nostalgia, Distant Solitude)",
-      "atmosphereDescription": "One sensory sentence in 10-14 words describing physical weather without metaphors.",
-      "precipitation": 0.0,
-      "windSpeed": 0.3,
-      "fogDensity": 0.0,
-      "snowIntensity": 0.0,
-      "clearness": 0.7,
-      "lightningFrequency": 0.0,
-      "colorTemperature": "golden"
-    }
+    STRICT WEATHER RULES:
+    1. sceneTitle: A poetic, minimalist TWO-WORD lowercase title reflecting the emotion (never echo instructions, never include parentheses or examples, never exceed 3 words).
+    2. atmosphereDescription: One minimalist sensory sentence (10–15 words) describing the physical weather. No metaphors.
+    3. Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most ONE to a non-zero value, never both.
+    4. clearness must be 0.0 whenever precipitation > 0.2, snowIntensity > 0.2, or fogDensity > 0.3.
+    5. lightningFrequency must be 0.0 unless precipitation >= 0.3.
+    6. colorTemperature MUST contrast with the active weather and be one of:
+       - snowing          → cool, arctic, or dusk
+       - heavy rain       → cool, melancholy, or dusk
+       - storm / rage     → melancholy, crimson, or dusk
+       - sunny / warm     → golden or warm
+       - cold clear sky   → arctic
+       - foggy / overcast → neutral, ash, or cool
+       - smoldering       → ember
+       - twilight/mystery → dusk
+       - passion / wound  → crimson
+       - Never use golden unless clearness > 0.5.
+       - Never use warm, golden, neutral, or arctic for heavy snow or storm.
+    7. All numeric values must be between 0.0 and 0.8. Choose the dominant weather type and set competing types to 0.0.
 
-    Rules:
-    - sceneTitle must be 2-3 words capturing the essence of the emotion.
-    - All numeric values must be between 0.0 and 0.8. Use the full range — do not default everything to 0.
-    - Output pure numeric or string literals only: NEVER add parenthetical notes or comments after values (e.g. do not write '0.0 (none)' or '0.3 (gentle)').
-    - colorTemperature must be one of: warm, cool, neutral, melancholy, golden, crimson, dusk, arctic, ember, ash.
-    - Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most one to non-zero.
+    STRICT PALETTE STYLE RULES — return 5 harmonious hex colours (#RRGGBB) belonging to the matching family:
+    • PASTEL (high lightness L 75–90, low saturation S 15–40): soft, airy, delicate. Use for warm, golden, arctic, light clear scenes.
+    • SOFT   (medium lightness L 45–75, low saturation S 10–30): muted, painterly, subdued. Use for neutral, cool, misty, foggy, light snow scenes.
+    • DARK   (low lightness L 8–40, medium saturation S 10–35): moody, deep, brooding. Use for melancholy, crimson, dusk, ember, storm, heavy rain scenes.
+    FORBIDDEN: vivid primaries, neon tones, saturation > 45, pure black (#000000), pure white (#ffffff).
+    Prefer watercolour washes, overcast skies, aged paper, or damp stone in exact semantic order:
+    [0] background: dominant sky/atmosphere tone matching colorTemperature and conditions
+    [1] surface: subtle lighter or darker overlay variant of the background
+    [2] text: high-contrast readable on background (dark text on light background, light text on dark background)
+    [3] accent: emotionally evocative highlight matching the dominant weather condition
+    [4] secondary: softer secondary accent or particle/mote tint
     """
 
     private static let maxInputLength = 300
@@ -105,10 +114,16 @@ class AIService {
 
     // MARK: - Helpers
 
-    /// A palette is only used when it has 5 colours with well-formed hex values.
+    /// A palette is only used when it has 5 colours with well-formed hex values and readable text contrast.
     private static func validated(_ palette: ColorPalette?) -> ColorPalette? {
-        guard let palette, palette.colors.count == 5,
+        guard var palette, palette.colors.count == 5,
               palette.colors.allSatisfy({ $0.validColor != nil }) else { return nil }
+        let bg = palette.colors[0]
+        let txt = palette.colors[2]
+        if bg.contrastRatio(against: txt) < 3.5 {
+            let safeHex = bg.luminance > 0.42 ? "#242220" : "#F2EFE9"
+            palette.colors[2] = GeneratedColor(name: "text readable", hex: safeHex)
+        }
         return palette
     }
 

@@ -121,11 +121,20 @@ extension WeatherState {
         if !WeatherState.allowedColorTemperatures.contains(s.colorTemperature) {
             s.colorTemperature = "neutral"
         }
-        s.sceneTitle = s.sceneTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.sceneTitle.isEmpty || s.sceneTitle.contains("two evocative words") || s.sceneTitle.contains("Title Here") {
-            s.sceneTitle = "Quiet Sky"
+        s.sceneTitle = s.sceneTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let lowerTitle = s.sceneTitle
+        if lowerTitle.isEmpty
+            || lowerTitle.contains("evocative")
+            || lowerTitle.contains("title")
+            || lowerTitle.contains("word")
+            || lowerTitle.contains("e.g.")
+            || lowerTitle.contains("(")
+            || lowerTitle.split(separator: " ").count > 4 {
+            s.sceneTitle = "quiet sky"
         }
-        if s.atmosphereDescription.contains("one minimalist sentence") || s.atmosphereDescription.contains("without metaphors") {
+        if s.atmosphereDescription.localizedCaseInsensitiveContains("minimalist sentence")
+            || s.atmosphereDescription.localizedCaseInsensitiveContains("without metaphors")
+            || s.atmosphereDescription.localizedCaseInsensitiveContains("sensory sentence") {
             s.atmosphereDescription = "A gentle breeze and soft light move through the quiet atmosphere."
         }
 
