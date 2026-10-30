@@ -179,13 +179,14 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 7.0
 
-        let query = "current weather temperature and sky conditions in \(location) right now"
+        let query = "current weather and temperature in \(location)"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
             "search_depth": "basic",
             "include_answer": true,
-            "max_results": 4
+            "exclude_domains": ["weatherapi.com"],
+            "max_results": 6
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
@@ -209,9 +210,23 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                 if let rawAnswer = parsed.answer, !rawAnswer.isEmpty {
                     // Strip trailing boilerplate disclaimer sentences while keeping valid weather sentences
                     let sentences = rawAnswer.components(separatedBy: ". ")
-                        .filter { !$0.localizedCaseInsensitiveContains("do not provide") && !$0.localizedCaseInsensitiveContains("could not find") }
+                        .filter {
+                            !$0.localizedCaseInsensitiveContains("do not provide") &&
+                            !$0.localizedCaseInsensitiveContains("does not provide") &&
+                            !$0.localizedCaseInsensitiveContains("could not find") &&
+                            !$0.localizedCaseInsensitiveContains("exceeding the monthly")
+                        }
                     let cleanedAnswer = sentences.joined(separator: ". ").trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !cleanedAnswer.isEmpty && (cleanedAnswer.contains("°") || cleanedAnswer.localizedCaseInsensitiveContains("degrees")) {
+                    if !cleanedAnswer.isEmpty && (
+                        cleanedAnswer.contains("°") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("degrees") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("cloudy") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("sunny") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("rain") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("overcast") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("clear") ||
+                        cleanedAnswer.localizedCaseInsensitiveContains("snow")
+                    ) {
                         print("[VieWs][Tavily] Grounding fetched: \(cleanedAnswer.prefix(90))...")
                         return cleanedAnswer
                     }
@@ -691,7 +706,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
     // MARK: JSON schema (used when response mode is json_schema)
 
     static var schema: [String: Any] {
-        let unit: [String: Any] = ["type": "number", "minimum": 0, "maximum": 0.8]
+        let unit: [String: Any] = ["type": "number"]
         let color: [String: Any] = [
             "type": "object",
             "properties": ["name": ["type": "string"], "hex": ["type": "string"]],
@@ -715,7 +730,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
             "type": "object",
             "properties": [
                 "title": ["type": "string"],
-                "colors": ["type": "array", "items": color, "minItems": 5, "maxItems": 5]
+                "colors": ["type": "array", "items": color]
             ],
             "required": ["title", "colors"],
             "additionalProperties": false

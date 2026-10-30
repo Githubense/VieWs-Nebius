@@ -174,19 +174,23 @@ struct ContentView: View {
     /// Extracts a subtle, elegant atmospheric hint (e.g. "chiapas is 15°c, passing clouds" or "paris is 14°c, clear skies").
     static func formatGrounding(_ raw: String, location: String? = nil, userQuery: String? = nil) -> String? {
         guard !raw.isEmpty else { return nil }
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = text.lowercased()
-
-        // 1. Reject failure responses from Tavily
-        if lower.contains("do not provide") || lower.contains("could not find") || lower.contains("no live weather") {
-            return nil
+        // Strip any disclaimer sentences rather than discarding valid telemetry in earlier sentences
+        let keptSentences = raw.components(separatedBy: ". ").filter {
+            !$0.localizedCaseInsensitiveContains("do not provide") &&
+            !$0.localizedCaseInsensitiveContains("does not provide") &&
+            !$0.localizedCaseInsensitiveContains("could not find") &&
+            !$0.localizedCaseInsensitiveContains("no live weather")
         }
+        let text = (keptSentences.isEmpty ? raw : keptSentences.joined(separator: ". "))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let lower = text.lowercased()
 
         // 2. Extract temperature, strictly prioritizing current/live readings over daily forecast highs
         var tempStr: String? = nil
 
-        // Priority A: Search for explicitly anchored current temperature ("currently 14°C", "is 14°C", "feels like 14°C")
-        let currentTempPattern = #"(?:currently|current\s+temp(?:erature)?(?:\s+is)?|temp(?:erature)?\s+is(?:\s+currently)?|is\s+currently|is|feels\s+like|right\s+now)\s*:?\s*(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
+        // Priority A: Search for explicitly anchored current temperature ("currently 14°C", "is 14°C", "around 65°F", "at 21°C")
+        let currentTempPattern = #"(?:currently|current\s+temp(?:erature)?(?:\s+is)?|temp(?:erature)?s?(?:\s+is|\s+at|\s+of|\s+around)?(?:\s+currently)?|is\s+currently|around|at|is|feels\s+like|right\s+now)\s*:?\s*(\d{1,3})(?:\.\d+)?\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
         if let regex = try? NSRegularExpression(pattern: currentTempPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)),
            let numRange = Range(match.range(at: 1), in: text),
@@ -207,7 +211,7 @@ struct ContentView: View {
 
         // Priority B: Fallback to all temperatures in text, filtering out forecast highs (e.g. "high of 21°C")
         if tempStr == nil {
-            let allTempPattern = #"(high\s+of\s+|maximum\s+of\s+|high:\s*|high\s+)?(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
+            let allTempPattern = #"(high\s+of\s+|maximum\s+of\s+|high:\s*|high\s+)?(?<!\.)(\d{1,3})(?:\.\d+)?\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
             if let regex = try? NSRegularExpression(pattern: allTempPattern, options: .caseInsensitive) {
                 let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
                 let targetMatch = matches.first(where: { m in m.range(at: 1).location == NSNotFound }) ?? matches.first
