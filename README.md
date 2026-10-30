@@ -20,6 +20,18 @@
 
 ---
 
+<p align="center">
+  <img src="assets/golden.gif" width="32%" alt="Golden Hour Atmosphere" />
+  <img src="assets/dusk.gif" width="32%" alt="Twilight Dusk Atmosphere" />
+  <img src="assets/snow.gif" width="32%" alt="Mountain Snowfall Atmosphere" />
+</p>
+
+<p align="center">
+  <em>Live procedural atmosphere generation: Golden Hour warmth, Twilight Dusk, and Mountain Snowfall.</em>
+</p>
+
+---
+
 ## Overview
 
 **VieWs** is an ambient iOS application that reimagines weather as an emotional state rather than a numerical forecast.

@@ -18,7 +18,7 @@ let package = Package(
             targets: ["AppModule"],
             bundleIdentifier: "pimienta.VieWs",
             teamIdentifier: "59ZWFH5UYB",
-            displayVersion: "1.1",
+            displayVersion: "ç",
             bundleVersion: "1",
             appIcon: .asset("AppIcon"),
             accentColor: .presetColor(.green),
@@ -37,10 +37,9 @@ let package = Package(
             ],
             appCategory: .healthcareFitness,
             additionalInfoPlistContentFilePath: "AppInfo.plist"
-
         )
     ],
-targets: [
+    targets: [
         .executableTarget(
             name: "AppModule",
             path: ".",
@@ -49,7 +48,6 @@ targets: [
                 .process("Assets.xcassets")
             ]
         )
-    ]    
-,
-    swiftLanguageModes: [.version("6")]
+    ],
+    swiftLanguageVersions: [.version("6")]
 )
