@@ -10,17 +10,12 @@
 </p>
 
 <p align="center">
-  <a href="https://testflight.apple.com/join/csnD6b1f"><img src="https://img.shields.io/badge/TestFlight-Install%20Beta-007AFF?style=for-the-badge&logo=apple&logoColor=white" alt="TestFlight Public Beta" /></a>
   <a href="https://tokenfactory.nebius.com"><img src="https://img.shields.io/badge/Nebius-Token%20Factory-00E599?style=for-the-badge&logoColor=black" alt="Nebius AI Cloud" /></a>
   <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/NVIDIA-Nemotron-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="NVIDIA Nemotron" /></a>
   <a href="https://tavily.com"><img src="https://img.shields.io/badge/Tavily-AI%20Search-4353FF?style=for-the-badge&logoColor=white" alt="Tavily AI Search" /></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6.0-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 6" /></a>
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/iOS-17%2B-000000?style=for-the-badge&logo=apple&logoColor=white" alt="iOS & iPadOS" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT License" /></a>
-</p>
-
-<p align="center">
-  <a href="https://testflight.apple.com/join/csnD6b1f"><strong>📲 Join the Public Beta on TestFlight</strong></a>
 </p>
 
 ---
@@ -35,13 +30,6 @@ Instead of displaying standard meteorological dashboards, VieWs invites you to d
 2. **Tavily AI Search** retrieves live atmospheric telemetry in under 400ms whenever a destination, travel memory, or city is referenced, grounding subjective introspection into physical reality.
 3. **SpriteKit 60 FPS Particle Physics** renders real-time rain, snow, fog, and lightning with luminosity-reactive particle palettes.
 4. **5-Layer DSP Audio Synthesizer** generates infinite, non-looping procedural soundscapes in real time via custom `AVAudioSourceNode` math.
-
----
-
-## Demo Video & TestFlight
-
-- **📲 Install on iPhone / iPad (Public Beta):** [testflight.apple.com/join/csnD6b1f](https://testflight.apple.com/join/csnD6b1f)
-- **🎬 Submission Demo Video:** [Watch on YouTube / Loom](https://youtube.com) *(Update link with your final video upload)*
 
 ---
 
