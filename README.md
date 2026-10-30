@@ -21,13 +21,9 @@
 ---
 
 <p align="center">
-  <img src="assets/golden.gif" width="32%" alt="Golden Hour Atmosphere" />
-  <img src="assets/dusk.gif" width="32%" alt="Twilight Dusk Atmosphere" />
-  <img src="assets/snow.gif" width="32%" alt="Mountain Snowfall Atmosphere" />
-</p>
-
-<p align="center">
-  <em>Live procedural atmosphere generation: Golden Hour warmth, Twilight Dusk, and Mountain Snowfall.</em>
+  <img src="assets/golden.webp" width="32%" alt="Golden Hour" />
+  <img src="assets/dusk.webp" width="32%" alt="Electric Dusk" />
+  <img src="assets/snow.webp" width="32%" alt="First Snow" />
 </p>
 
 ---

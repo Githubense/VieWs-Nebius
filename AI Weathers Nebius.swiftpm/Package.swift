@@ -18,7 +18,7 @@ let package = Package(
             targets: ["AppModule"],
             bundleIdentifier: "pimienta.VieWs",
             teamIdentifier: "59ZWFH5UYB",
-            displayVersion: "ç",
+            displayVersion: "1.1",
             bundleVersion: "1",
             appIcon: .asset("AppIcon"),
             accentColor: .presetColor(.green),
@@ -44,8 +44,7 @@ let package = Package(
             name: "AppModule",
             path: ".",
             resources: [
-                .process("Resources"),
-                .process("Assets.xcassets")
+                .process("Resources")
             ]
         )
     ],
