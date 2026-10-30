@@ -101,7 +101,7 @@ VieWs uses zero static audio loops for ambient sound. Everything is computed mat
 ### Steps
 1. Open the project folder in **Xcode**:
    ```bash
-   open "AI Weathers Nebius.swiftpm"
+   "AI Weathers Nebius.swiftpm"
    ```
 2. Open `Secrets.swift` (already present in the Xcode project) and paste your API keys:
    ```swift
