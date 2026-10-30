@@ -123,14 +123,27 @@ extension WeatherState {
         }
         s.sceneTitle = s.sceneTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let lowerTitle = s.sceneTitle
+        let words = lowerTitle.split(separator: " ")
         if lowerTitle.isEmpty
             || lowerTitle.contains("evocative")
             || lowerTitle.contains("title")
             || lowerTitle.contains("word")
             || lowerTitle.contains("e.g.")
             || lowerTitle.contains("(")
-            || lowerTitle.split(separator: " ").count > 4 {
+            || words.count > 4 {
             s.sceneTitle = "quiet sky"
+        } else if words.count == 1 {
+            // Guarantee a 2-word poetic weather title if a model ever returns a single modifier word
+            let noun: String
+            if s.snowIntensity > 0.15 { noun = "snow" }
+            else if s.precipitation > 0.35 { noun = "rain" }
+            else if s.precipitation > 0.05 { noun = "drizzle" }
+            else if s.fogDensity > 0.2 { noun = "mist" }
+            else if s.windSpeed > 0.35 { noun = "winds" }
+            else if s.colorTemperature == "dusk" || s.colorTemperature == "ash" || s.colorTemperature == "melancholy" { noun = "dusk" }
+            else if s.colorTemperature == "golden" || s.colorTemperature == "warm" { noun = "dawn" }
+            else { noun = "sky" }
+            s.sceneTitle = "\(words[0]) \(noun)"
         }
         if s.atmosphereDescription.localizedCaseInsensitiveContains("minimalist sentence")
             || s.atmosphereDescription.localizedCaseInsensitiveContains("without metaphors")

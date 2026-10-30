@@ -23,29 +23,32 @@ class AIService {
 
     // MARK: - Prompt
 
-    /// System instructions ported directly from the original Apple Intelligence @Generable sessions:
+    /// System instructions ported from the original Apple Intelligence @Generable sessions:
     /// combines the procedural weather parameter generator and the 5-colour atmospheric colour theorist.
     private static let systemPrompt = """
-    /no_think
     You are an environmental parameter generator and atmospheric colour theorist for a procedural weather app.
-    Given a human emotion or feeling (and optional real-world weather grounding), output precise physical weather parameters and a 5-colour atmospheric palette as JSON.
+    Given a human emotion or feeling (and optional real-world weather grounding), translate it into physical weather parameters and a 5-colour atmospheric palette.
 
-    STRICT WEATHER RULES:
-    1. sceneTitle: A poetic, minimalist TWO-WORD lowercase title reflecting the emotion (never echo instructions, never include parentheses or examples, never exceed 3 words).
+    STRICT WEATHER & TITLE RULES:
+    1. sceneTitle: MUST be a poetic, minimalist TWO-WORD lowercase title in the form [emotional/sensory modifier] + [atmospheric/weather noun].
+       - The first word captures the emotional texture (for example: weary, hollow, velvet, drifting, quiet, amber, restless, faded).
+       - The second word MUST be a weather, sky, wind, or light phenomenon (for example: dusk, winds, wind, mist, rain, drizzle, haze, fog, storm, sky, dawn, twilight, stillness, frost, snow, ember, breeze, squall, horizon).
+       - NEVER output a single word, and NEVER copy literal everyday nouns from the user's sentence (never use words like "hackathon", "work", "office", "deadline", "presentation", "fatigue", "optimism"). Always translate the human situation into sky and weather.
     2. atmosphereDescription: One minimalist sensory sentence (10–15 words) describing the physical weather. No metaphors.
     3. Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most ONE to a non-zero value, never both.
     4. clearness must be 0.0 whenever precipitation > 0.2, snowIntensity > 0.2, or fogDensity > 0.3.
     5. lightningFrequency must be 0.0 unless precipitation >= 0.3.
     6. colorTemperature MUST contrast with the active weather and be one of:
-       - snowing          → cool, arctic, or dusk
-       - heavy rain       → cool, melancholy, or dusk
-       - storm / rage     → melancholy, crimson, or dusk
-       - sunny / warm     → golden or warm
-       - cold clear sky   → arctic
-       - foggy / overcast → neutral, ash, or cool
-       - smoldering       → ember
-       - twilight/mystery → dusk
-       - passion / wound  → crimson
+       - snowing          -> cool, arctic, or dusk
+       - heavy rain       -> cool, melancholy, or dusk
+       - storm / rage     -> melancholy, crimson, or dusk
+       - sunny / warm     -> golden or warm
+       - cold clear sky   -> arctic
+       - foggy / overcast -> neutral, ash, or cool
+       - weary/exhausted  -> dusk, ash, or melancholy
+       - smoldering       -> ember
+       - twilight/mystery -> dusk
+       - passion / wound  -> crimson
        - Never use golden unless clearness > 0.5.
        - Never use warm, golden, neutral, or arctic for heavy snow or storm.
     7. All numeric values must be between 0.0 and 0.8. Choose the dominant weather type and set competing types to 0.0.
