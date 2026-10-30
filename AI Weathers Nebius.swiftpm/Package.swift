@@ -10,7 +10,7 @@ import AppleProductTypes
 let package = Package(
     name: "VieWs",
     platforms: [
-        .iOS("26.0")
+        .iOS("17.0")
     ],
     products: [
         .iOSApplication(
