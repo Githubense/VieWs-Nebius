@@ -95,15 +95,14 @@ VieWs uses zero static audio loops for ambient sound. Everything is computed mat
    ```bash
    open "AI Weathers Nebius.swiftpm"
    ```
-2. Configure your API keys in `AI Weathers Nebius.swiftpm/Secrets.swift`:
+2. Open `Secrets.swift` (already present in the Xcode project) and paste your API keys:
    ```swift
    enum Secrets {
        static let nebiusAPIKey = "your_nebius_token_factory_key"
-       static let nebiusModel  = "nvidia/Nemotron-3_5-Lightning"
        static let tavilyAPIKey = "your_tavily_api_key"
    }
    ```
-   *(A template is provided at `Secrets.swift.example`. `Secrets.swift` is already ignored by `.gitignore` to prevent committing credentials).*
+   *(To prevent Git from tracking your local key edits, run: `git update-index --skip-worktree "AI Weathers Nebius.swiftpm/Secrets.swift"`).*
 3. Select your target device or simulator in Xcode and press **Run (`⌘R`)**.
 
 ---

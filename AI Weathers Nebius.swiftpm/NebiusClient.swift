@@ -180,7 +180,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 7.0
 
-        let query = "current temperature and weather conditions in \(location) right now live degrees"
+        let query = "What is the current temperature and weather conditions in \(location) right now?"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,

@@ -2,13 +2,7 @@
 VieWs.swiftpm/
 *.pixabay_backup
 
-# Secrets and Keys (CRITICAL: Never commit real API keys)
-Secrets.swift
-**/Secrets.swift
-!Secrets.example.swift
-!**/Secrets.example.swift
-!Secrets.swift.example
-!**/Secrets.swift.example
+# Local environment variables
 .env
 *.env
 
