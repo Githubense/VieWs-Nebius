@@ -146,6 +146,14 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                     payload.groundingLocation = detectedLocation
                 }
                 return payload
+            } catch NebiusError.invalidJSON(let msg) {
+                attempt += 1
+                if attempt <= 1 {
+                    print("[VieWs][Nebius] JSON decode attempt \(attempt) failed (\(msg)). Retrying with explicit double-quote JSON enforcement...")
+                    promptUser += "\n\nCRITICAL: Your previous response was not valid JSON. You MUST output ONLY raw valid JSON starting with '{' and ending with '}'. Use standard double quotes for all keys and strings. Never use single quotes."
+                    continue
+                }
+                throw NebiusError.invalidJSON(msg)
             } catch NebiusError.http(let status, let body) {
                 attempt += 1
                 if status == 400, let lower = downgraded(mode) {
@@ -434,13 +442,53 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
     // MARK: Parsing (static so it can be unit-tested without the network)
 
-    /// Strips reasoning blocks and code fences, then decodes the first JSON object found.
+    /// Sanitizes common LLM output anomalies (single quotes, trailing commas, escaped quotes).
+    static func repairJSON(_ raw: String) -> String {
+        var str = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. If already valid JSON according to JSONSerialization, keep it
+        if let data = str.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil {
+            return str
+        }
+
+        // 2. Remove trailing commas before closing braces/brackets (e.g. ", }" or ", ]")
+        str = str.replacingOccurrences(of: #",\s*([}\]])"#, with: "$1", options: .regularExpression)
+
+        // 3. Convert single quotes around JSON keys: e.g. 'sceneTitle': -> "sceneTitle":
+        str = str.replacingOccurrences(of: #"'([A-Za-z0-9_]+)'\s*:"#, with: "\"$1\":", options: .regularExpression)
+
+        // 4. Convert single quotes around string values: e.g. : 'some value' -> : "some value"
+        let valRegex = #":\s*'((?:\\'|[^'])*)'"#
+        if let regex = try? NSRegularExpression(pattern: valRegex) {
+            let nsStr = str as NSString
+            let matches = regex.matches(in: str, options: [], range: NSRange(location: 0, length: nsStr.length))
+            for match in matches.reversed() {
+                let fullRange = match.range(at: 0)
+                let innerRange = match.range(at: 1)
+                let inner = nsStr.substring(with: innerRange)
+                let fixedInner = inner.replacingOccurrences(of: "\"", with: "\\\"")
+                                      .replacingOccurrences(of: "\\'", with: "'")
+                let replacement = ": \"\(fixedInner)\""
+                str = (str as NSString).replacingCharacters(in: fullRange, with: replacement)
+            }
+        }
+
+        return str
+    }
+
+    /// Strips reasoning blocks and code fences, repairs formatting, then decodes into WeatherPayload.
     static func decodePayload(from raw: String) throws -> WeatherPayload {
-        let json = extractJSON(from: raw)
+        let extracted = extractJSON(from: raw)
+        let json = repairJSON(extracted)
         guard let data = json.data(using: .utf8) else { throw NebiusError.invalidJSON("not UTF-8") }
         do {
             return try JSONDecoder().decode(WeatherPayload.self, from: data)
         } catch {
+            // One last attempt: try decoding directly from the raw extracted if repair had side effects
+            if let rawData = extracted.data(using: .utf8),
+               let payload = try? JSONDecoder().decode(WeatherPayload.self, from: rawData) {
+                return payload
+            }
             throw NebiusError.invalidJSON("\(error)")
         }
     }
@@ -456,21 +504,29 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
         var candidates: [String] = []
 
-        // 2. Collect all fenced code blocks ```json ... ``` or ``` ... ```
+        // Helper to validate and repair candidate strings
+        func tryCandidate(_ rawCandidate: String) {
+            let candidate = repairJSON(rawCandidate)
+            if (candidate.contains("\"sceneTitle\"") || candidate.contains("\"weather\"") || candidate.contains("\"precipitation\"")),
+               let data = candidate.data(using: .utf8),
+               (try? JSONSerialization.jsonObject(with: data)) != nil {
+                candidates.append(candidate)
+            }
+        }
+
+        // 2. Collect all fenced code blocks ```json ... ```, ```python ... ```, or ``` ... ```
         var fenceIndex = text.startIndex
         while fenceIndex < text.endIndex, let startFence = text[fenceIndex...].range(of: "```") {
             let afterStart = startFence.upperBound
             var codeStart = afterStart
             if text[afterStart...].hasPrefix("json") {
                 codeStart = text.index(afterStart, offsetBy: 4)
+            } else if text[afterStart...].hasPrefix("python") {
+                codeStart = text.index(afterStart, offsetBy: 6)
             }
             if let endFence = text[codeStart...].range(of: "```") {
                 let fenced = String(text[codeStart..<endFence.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if (fenced.contains("\"sceneTitle\"") || fenced.contains("\"weather\"")),
-                   let data = fenced.data(using: .utf8),
-                   (try? JSONSerialization.jsonObject(with: data)) != nil {
-                    candidates.append(fenced)
-                }
+                tryCandidate(fenced)
                 fenceIndex = endFence.upperBound
             } else {
                 break
@@ -495,7 +551,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
                     escape = true
                     continue
                 }
-                if char == "\"" {
+                if char == "\"" || char == "'" {
                     inString.toggle()
                     continue
                 }
@@ -514,11 +570,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
             if let close = closeBrace {
                 let candidate = String(text[openBrace...close])
-                if (candidate.contains("\"sceneTitle\"") || candidate.contains("\"weather\"") || candidate.contains("\"precipitation\"")),
-                   let data = candidate.data(using: .utf8),
-                   (try? JSONSerialization.jsonObject(with: data)) != nil {
-                    candidates.append(candidate)
-                }
+                tryCandidate(candidate)
                 searchIndex = text.index(after: openBrace)
             } else {
                 break
@@ -541,9 +593,9 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
 
         // Fallback: first '{' to last '}'
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end else {
-            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return repairJSON(text)
         }
-        return String(text[start...end])
+        return repairJSON(String(text[start...end]))
     }
 
     // MARK: JSON schema (used when response mode is json_schema)

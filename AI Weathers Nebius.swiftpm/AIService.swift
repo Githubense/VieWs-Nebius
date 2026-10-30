@@ -31,8 +31,9 @@ class AIService {
 
     CRITICAL INSTRUCTIONS:
     1. Output ONLY a valid JSON object matching the schema below. Do NOT output markdown code fences or commentary. Start immediately with '{'.
-    2. Generate creative, unique values tailored to the user's emotion. Do NOT output placeholder text.
-    3. Required JSON format:
+    2. Always use standard double quotes (") for all keys and strings. Never use single quotes (').
+    3. Generate creative, unique values tailored to the user's emotion. Do NOT output placeholder text.
+    4. Required JSON format:
     {
       "sceneTitle": "2-3 word evocative title (e.g. Manhattan Dusk, Amber Nostalgia, Distant Solitude)",
       "atmosphereDescription": "One sensory sentence in 10-14 words describing physical weather without metaphors.",
