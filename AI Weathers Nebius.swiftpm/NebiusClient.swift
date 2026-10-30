@@ -122,7 +122,12 @@ actor NebiusClient {
             detectedLocation = loc
             print("[VieWs][Location] Detected '\(loc)' — fetching live Tavily grounding...")
             if let grounding = await fetchTavilyGrounding(forLocation: loc) {
-                promptUser += "\nReal-world atmospheric grounding for \(loc) (via Tavily search): \(grounding)\nTranslate the emotional feeling into weather parameters informed by this sensory context."
+                promptUser += """
+
+Real-world atmospheric grounding for \(loc) (via live Tavily AI search):
+\(grounding)
+CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURRENT real-time weather right now (do NOT use future daily forecast highs). Translate the emotional feeling into weather parameters faithfully informed by this live sensory context.
+"""
                 liveGrounding = grounding
             }
         } else {
@@ -167,13 +172,14 @@ actor NebiusClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 7.0
 
-        let query = "current weather in \(location) today conditions temperature sky"
+        let query = "current temperature and weather conditions in \(location) right now live degrees"
         let body: [String: Any] = [
             "api_key": key,
             "query": query,
             "search_depth": "basic",
             "include_answer": true,
-            "max_results": 3
+            "exclude_domains": ["weatherapi.com"],
+            "max_results": 4
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }

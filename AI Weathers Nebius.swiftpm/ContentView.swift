@@ -182,27 +182,51 @@ struct ContentView: View {
             return nil
         }
 
-        // 2. Extract temperature and properly convert/standardize unit
+        // 2. Extract temperature, strictly prioritizing current/live readings over daily forecast highs
         var tempStr: String? = nil
-        let tempPattern = #"(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
-        if let regex = try? NSRegularExpression(pattern: tempPattern, options: .caseInsensitive),
+
+        // Priority A: Search for explicitly anchored current temperature ("currently 14°C", "is 14°C", "feels like 14°C")
+        let currentTempPattern = #"(?:currently|current\s+temp(?:erature)?(?:\s+is)?|temp(?:erature)?\s+is(?:\s+currently)?|is\s+currently|is|feels\s+like|right\s+now)\s*:?\s*(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
+        if let regex = try? NSRegularExpression(pattern: currentTempPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)),
            let numRange = Range(match.range(at: 1), in: text),
            let val = Int(text[numRange]) {
-
             var unit: String = ""
             if match.numberOfRanges > 2, match.range(at: 2).location != NSNotFound, let uRange = Range(match.range(at: 2), in: text) {
                 unit = String(text[uRange]).lowercased()
             } else if match.numberOfRanges > 3, match.range(at: 3).location != NSNotFound, let uRange = Range(match.range(at: 3), in: text) {
                 unit = String(text[uRange]).lowercased()
             }
-
             if unit.hasPrefix("f") || (unit.isEmpty && val > 45) {
-                // Convert Fahrenheit to Celsius
                 let celsius = Int(round((Double(val) - 32.0) * 5.0 / 9.0))
                 tempStr = "\(celsius)°c"
             } else {
                 tempStr = "\(val)°c"
+            }
+        }
+
+        // Priority B: Fallback to all temperatures in text, filtering out forecast highs (e.g. "high of 21°C")
+        if tempStr == nil {
+            let allTempPattern = #"(high\s+of\s+|maximum\s+of\s+|high:\s*|high\s+)?(\d{1,3})\s*(?:°\s*([CFcf])|°|degrees?\s*(celsius|fahrenheit)?)"#
+            if let regex = try? NSRegularExpression(pattern: allTempPattern, options: .caseInsensitive) {
+                let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+                let targetMatch = matches.first(where: { m in m.range(at: 1).location == NSNotFound }) ?? matches.first
+                if let match = targetMatch,
+                   let numRange = Range(match.range(at: 2), in: text),
+                   let val = Int(text[numRange]) {
+                    var unit: String = ""
+                    if match.numberOfRanges > 3, match.range(at: 3).location != NSNotFound, let uRange = Range(match.range(at: 3), in: text) {
+                        unit = String(text[uRange]).lowercased()
+                    } else if match.numberOfRanges > 4, match.range(at: 4).location != NSNotFound, let uRange = Range(match.range(at: 4), in: text) {
+                        unit = String(text[uRange]).lowercased()
+                    }
+                    if unit.hasPrefix("f") || (unit.isEmpty && val > 45) {
+                        let celsius = Int(round((Double(val) - 32.0) * 5.0 / 9.0))
+                        tempStr = "\(celsius)°c"
+                    } else {
+                        tempStr = "\(val)°c"
+                    }
+                }
             }
         }
 
