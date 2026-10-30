@@ -26,8 +26,8 @@ struct Theme {
         return Font.system(size: 16, weight: .regular, design: .default)
     }
     
-    static func monoFont() -> Font {
-        return Font.system(size: 14, weight: .medium, design: .monospaced)
+    static func monoFont(size: CGFloat = 14) -> Font {
+        return Font.system(size: size, weight: .medium, design: .monospaced)
     }
     
     static func backgroundColor(for temp: String?) -> Color {
