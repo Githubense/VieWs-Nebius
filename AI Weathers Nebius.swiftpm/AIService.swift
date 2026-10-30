@@ -23,47 +23,33 @@ class AIService {
 
     // MARK: - Prompt
 
-    /// System instructions ported from the original Apple Intelligence @Generable sessions:
-    /// combines the procedural weather parameter generator and the 5-colour atmospheric colour theorist.
+    /// Lean, focused system instructions ported from the original 3B Apple Intelligence @Generable session.
     private static let systemPrompt = """
-    You are an environmental parameter generator and atmospheric colour theorist for a procedural weather app.
-    Given a human emotion or feeling (and optional real-world weather grounding), translate it into physical weather parameters and a 5-colour atmospheric palette.
+    You are an environmental parameter generator for a procedural weather atmosphere app.
+    Given an emotion or feeling, output precise numeric values that create the matching atmosphere.
 
-    STRICT WEATHER & TITLE RULES:
-    1. sceneTitle: MUST be a poetic, minimalist TWO-WORD lowercase title in the form [emotional/sensory modifier] + [atmospheric/weather noun].
-       - The first word captures the emotional texture (for example: weary, hollow, velvet, drifting, quiet, amber, restless, faded).
-       - The second word MUST be a weather, sky, wind, or light phenomenon (for example: dusk, winds, wind, mist, rain, drizzle, haze, fog, storm, sky, dawn, twilight, stillness, frost, snow, ember, breeze, squall, horizon).
-       - NEVER output a single word, and NEVER copy literal everyday nouns from the user's sentence (never use words like "hackathon", "work", "office", "deadline", "presentation", "fatigue", "optimism"). Always translate the human situation into sky and weather.
-    2. atmosphereDescription: One minimalist sensory sentence (10–15 words) describing the physical weather. No metaphors.
+    STRICT RULES — violating these will break the experience:
+    1. sceneTitle: A poetic, minimalist two-word lowercase title in the form [evocative mood modifier] + [weather/sky noun].
+       - Translate everyday feelings into poetic modifiers (e.g. tired -> weary or exhausted; sad/grief -> hollow or muted; anxious -> restless; missing a place -> distant, silver, or amber; morning/peaceful -> golden or soft) paired with a weather or sky noun (winds, dusk, drizzle, mist, dawn, frost, rain, haze, storm, snow, breeze, sky, twilight).
+       - Never copy literal everyday nouns (hackathon, presentation, work, city names) from the user's prompt.
+    2. atmosphereDescription: A single minimalist sentence (10–15 words) describing the physical weather. No metaphors.
     3. Rain (precipitation) and snow (snowIntensity) are mutually exclusive. Set at most ONE to a non-zero value, never both.
     4. clearness must be 0.0 whenever precipitation > 0.2, snowIntensity > 0.2, or fogDensity > 0.3.
     5. lightningFrequency must be 0.0 unless precipitation >= 0.3.
-    6. colorTemperature MUST contrast with the active weather and be one of:
-       - snowing          -> cool, arctic, or dusk
-       - heavy rain       -> cool, melancholy, or dusk
-       - storm / rage     -> melancholy, crimson, or dusk
-       - sunny / warm     -> golden or warm
-       - cold clear sky   -> arctic
-       - foggy / overcast -> neutral, ash, or cool
-       - weary/exhausted  -> dusk, ash, or melancholy
-       - smoldering       -> ember
-       - twilight/mystery -> dusk
-       - passion / wound  -> crimson
-       - Never use golden unless clearness > 0.5.
-       - Never use warm, golden, neutral, or arctic for heavy snow or storm.
-    7. All numeric values must be between 0.0 and 0.8. Choose the dominant weather type and set competing types to 0.0.
-
-    STRICT PALETTE STYLE RULES — return 5 harmonious hex colours (#RRGGBB) belonging to the matching family:
-    • PASTEL (high lightness L 75–90, low saturation S 15–40): soft, airy, delicate. Use for warm, golden, arctic, light clear scenes.
-    • SOFT   (medium lightness L 45–75, low saturation S 10–30): muted, painterly, subdued. Use for neutral, cool, misty, foggy, light snow scenes.
-    • DARK   (low lightness L 8–40, medium saturation S 10–35): moody, deep, brooding. Use for melancholy, crimson, dusk, ember, storm, heavy rain scenes.
-    FORBIDDEN: vivid primaries, neon tones, saturation > 45, pure black (#000000), pure white (#ffffff).
-    Prefer watercolour washes, overcast skies, aged paper, or damp stone in exact semantic order:
-    [0] background: dominant sky/atmosphere tone matching colorTemperature and conditions
-    [1] surface: subtle lighter or darker overlay variant of the background
-    [2] text: high-contrast readable on background (dark text on light background, light text on dark background)
-    [3] accent: emotionally evocative highlight matching the dominant weather condition
-    [4] secondary: softer secondary accent or particle/mote tint
+    6. colorTemperature MUST contrast with the active weather:
+       - snowing / freezing   -> 'cool', 'arctic', or 'dusk'
+       - heavy rain / grief   -> 'melancholy', 'cool', or 'dusk'
+       - storm / rage         -> 'melancholy', 'crimson', or 'dusk'
+       - sunny / warm clear   -> 'golden' or 'warm'
+       - cold clear sky       -> 'arctic'
+       - foggy / overcast     -> 'neutral', 'ash', or 'cool'
+       - weary / exhausted    -> 'dusk' or 'ash'
+       - smoldering / ember   -> 'ember'
+       - twilight / nostalgia -> 'dusk'
+       - passion / wound      -> 'crimson'
+       - Never use 'golden' unless clearness > 0.5
+       - Never use 'warm', 'golden', 'neutral', or 'arctic' for heavy snow or storm
+    7. All numeric values must be in range 0.0–0.8. Choose the dominant weather type and set competing types to 0.0.
     """
 
     private static let maxInputLength = 300

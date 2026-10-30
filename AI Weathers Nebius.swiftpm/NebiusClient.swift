@@ -10,13 +10,7 @@ enum NebiusConfig {
         return Secrets.nebiusAPIKey
     }
 
-    static var model: String {
-        let configured = Secrets.nebiusModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if configured.isEmpty || configured == "nvidia/Nemotron-3_5-Lightning" {
-            return "nvidia/Nemotron-3-Ultra-550b-a55b"
-        }
-        return configured
-    }
+    static var model: String { Secrets.nebiusModel }
 
     static var baseURL: URL? { URL(string: Secrets.nebiusBaseURL) }
 
@@ -479,7 +473,7 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
         case .jsonSchema:
             body["response_format"] = [
                 "type": "json_schema",
-                "json_schema": ["name": "weather_scene", "strict": true, "schema": Self.schema]
+                "json_schema": ["name": "weather_state", "strict": true, "schema": Self.schema]
             ]
         case .jsonObject:
             body["response_format"] = ["type": "json_object"]
@@ -712,59 +706,31 @@ CRITICAL INSTRUCTION: Base temperature, sky, and conditions strictly on the CURR
     // MARK: JSON schema (used when response mode is json_schema)
 
     static var schema: [String: Any] {
-        let color: [String: Any] = [
-            "type": "object",
-            "properties": [
-                "name": ["type": "string", "description": "The semantic role plus a short descriptor, e.g. 'background twilight slate'"],
-                "hex":  ["type": "string", "description": "CSS hex colour including # prefix, 7 chars, muted watercolour/atmospheric tone"]
-            ],
-            "required": ["name", "hex"],
-            "additionalProperties": false
-        ]
-        let weather: [String: Any] = [
+        return [
             "type": "object",
             "properties": [
                 "sceneTitle": [
                     "type": "string",
-                    "description": "Strictly TWO lowercase words: [poetic mood or sensory adjective] + [weather/sky/wind/light noun]. The second word MUST be a meteorological or sky phenomenon (dusk, winds, wind, mist, rain, drizzle, haze, fog, storm, sky, dawn, twilight, stillness, frost, snow, ember, breeze, squall, horizon). Never repeat literal non-weather words from the user prompt."
+                    "description": "A poetic, minimalist two-word lowercase title reflecting the user's emotion as weather: [evocative modifier] + [weather/sky noun]."
                 ],
                 "atmosphereDescription": [
                     "type": "string",
-                    "description": "A single minimalist sentence (10-15 words) describing why this physical weather fits the emotion. No metaphors."
+                    "description": "A single minimalist sentence (10–15 words) describing the physical weather. No metaphors."
                 ],
                 "precipitation":      ["type": "number", "description": "Rain intensity from 0.0 (none) to 0.8 (heavy downpour). Zero when snow is active."],
                 "windSpeed":          ["type": "number", "description": "Wind speed from 0.0 (still) to 0.8 (gale force)."],
                 "fogDensity":         ["type": "number", "description": "Fog or mist density from 0.0 (clear) to 0.8 (dense fog). Zero when clearness > 0.5."],
                 "snowIntensity":      ["type": "number", "description": "Snowfall intensity from 0.0 (none) to 0.8 (blizzard). Zero when rain is active."],
-                "clearness":          ["type": "number", "description": "Sky clearness from 0.0 (overcast) to 0.8 (sunlight). Zero when rain, snow, or heavy fog is active."],
-                "lightningFrequency": ["type": "number", "description": "Lightning frequency from 0.0 (silent) to 0.8 (storm). Zero unless precipitation >= 0.3."],
+                "clearness":          ["type": "number", "description": "Sky clearness from 0.0 (overcast) to 0.8 (golden sunlight). Zero when precipitation or snow is active."],
+                "lightningFrequency": ["type": "number", "description": "Lightning frequency from 0.0 (silent) to 0.8 (intense storm). Only non-zero when precipitation >= 0.3."],
                 "colorTemperature": [
                     "type": "string",
-                    "description": "Background tone matching emotion and weather: 'dusk' (twilight/weary/nostalgia), 'ash' (exhausted/overcast/faded), 'melancholy' (grief/heavy rain/storm), 'cool' (drizzle/mist/breeze), 'warm' (gentle sun), 'golden' (bright joy/sunlight), 'arctic' (crisp cold/snow), 'ember' (smoldering), 'crimson' (rage/passion), 'neutral' (calm).",
+                    "description": "Background colour family matching the weather: 'melancholy' (grief/heavy rain), 'dusk' (twilight/weary/nostalgia), 'ash' (exhausted/fog/overcast), 'cool' (light rain/mist), 'golden' (bright sun/joy), 'warm' (gentle warmth), 'arctic' (snow/freezing), 'ember' (smoldering), 'crimson' (rage/passion), 'neutral' (calm).",
                     "enum": WeatherState.allowedColorTemperatures
                 ]
             ],
             "required": ["sceneTitle", "atmosphereDescription", "precipitation", "windSpeed", "fogDensity",
                          "snowIntensity", "clearness", "lightningFrequency", "colorTemperature"],
-            "additionalProperties": false
-        ]
-        let palette: [String: Any] = [
-            "type": "object",
-            "properties": [
-                "title": ["type": "string", "description": "A short evocative title for this palette matching the scene mood"],
-                "colors": [
-                    "type": "array",
-                    "description": "Exactly 5 colours in fixed semantic order: [0] background, [1] surface, [2] text (high-contrast readable on background), [3] accent, [4] secondary",
-                    "items": color
-                ]
-            ],
-            "required": ["title", "colors"],
-            "additionalProperties": false
-        ]
-        return [
-            "type": "object",
-            "properties": ["weather": weather, "palette": palette],
-            "required": ["weather", "palette"],
             "additionalProperties": false
         ]
     }

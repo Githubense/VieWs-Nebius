@@ -175,10 +175,17 @@ extension WeatherState {
             }
         }
 
-        // 3. Clearness opposes precipitation, snow, and heavy fog
-        let obscuration = max(s.precipitation, s.snowIntensity, s.fogDensity)
-        if obscuration > 0.2 {
-            s.clearness = min(s.clearness, max(0, 1 - obscuration * 1.2))
+        // 3. Clearness opposes precipitation, snow, and heavy fog (and twilight/overcast moods)
+        if s.precipitation > 0.2 || s.snowIntensity > 0.2 || s.fogDensity > 0.3 {
+            s.clearness = 0
+        } else {
+            let obscuration = max(s.precipitation, s.snowIntensity, s.fogDensity)
+            if obscuration > 0.1 {
+                s.clearness = min(s.clearness, max(0, 1 - obscuration * 1.5))
+            }
+        }
+        if s.colorTemperature == "dusk" || s.colorTemperature == "ash" || s.colorTemperature == "melancholy" {
+            s.clearness = min(s.clearness, 0.35)
         }
 
         // 4. Lightning requires rain
